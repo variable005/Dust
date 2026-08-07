@@ -1,0 +1,23 @@
+# SwiftPM Build Directory
+.build/
+.swiftpm/
+
+# Xcode & User Settings
+*.xcodeproj
+*.xcworkspace
+xcuserdata/
+*.xcuserdata
+DerivedData/
+*.moved-aside
+
+# macOS System Files
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+Thumbs.db
+*.swp
+*~
+
+# Local Test Artefacts & Cache
+.cache/
