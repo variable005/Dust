@@ -12,62 +12,79 @@ struct MarkdownEditorView: View {
     @StateObject private var viewState = EditorViewState()
     
     var body: some View {
-        ZStack(alignment: .bottom) {
-            VStack(spacing: 0) {
-                // Top Header / Editor Mode Switcher Bar
-                editorToolbar
-                
-                Divider()
-                
-                // Main Editor / Preview Canvas
-                ZStack {
-                    if viewState.isPreviewMode {
-                        ScrollView {
-                            MarkdownPreview(content: note.content)
-                                .padding(.horizontal, 36)
-                                .padding(.top, 24)
-                                .padding(.bottom, 80)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                        }
-                        .background(.ultraThinMaterial)
-                    } else {
-                        TextEditor(text: Binding(
-                            get: { note.content },
-                            set: { newValue in
-                                onContentChange(newValue)
+        GeometryReader { geometry in
+            let isCompact = geometry.size.width < 500
+            let horizontalMargin = max(20, min(geometry.size.width * 0.08, 56))
+            
+            ZStack(alignment: .bottom) {
+                VStack(spacing: 0) {
+                    // Top Header / Editor Mode Switcher Bar
+                    editorToolbar(isCompact: isCompact)
+                    
+                    Divider()
+                    
+                    // Main Editor / Preview Canvas
+                    ZStack {
+                        if viewState.isPreviewMode {
+                            ScrollView {
+                                MarkdownPreview(content: note.content)
+                                    .padding(.horizontal, horizontalMargin)
+                                    .padding(.top, 24)
+                                    .padding(.bottom, 90)
+                                    .frame(maxWidth: 800, alignment: .leading)
+                                    .frame(maxWidth: .infinity, alignment: .center)
                             }
-                        ))
-                        .font(.system(size: 14, weight: .regular, design: .monospaced))
-                        .lineSpacing(6)
-                        .scrollContentBackground(.hidden)
-                        .background(.ultraThinMaterial)
-                        .padding(.horizontal, 28)
-                        .padding(.top, 20)
-                        .padding(.bottom, 80)
+                            .background(.ultraThinMaterial)
+                        } else {
+                            HStack {
+                                Spacer(minLength: 0)
+                                TextEditor(text: Binding(
+                                    get: { note.content },
+                                    set: { newValue in
+                                        onContentChange(newValue)
+                                    }
+                                ))
+                                .font(.system(size: 14, weight: .regular, design: .monospaced))
+                                .lineSpacing(6)
+                                .scrollContentBackground(.hidden)
+                                .background(.ultraThinMaterial)
+                                .padding(.horizontal, horizontalMargin)
+                                .padding(.top, 20)
+                                .padding(.bottom, 90)
+                                .frame(maxWidth: 850)
+                                Spacer(minLength: 0)
+                            }
+                            .background(.ultraThinMaterial)
+                        }
                     }
                 }
+                
+                // Floating Liquid Glass Ornaments Bar (Apple Design Pattern)
+                floatingOrnamentsBar(isCompact: isCompact)
+                    .padding(.bottom, 16)
             }
-            
-            // Floating Liquid Glass Ornaments Bar (Apple Design Pattern)
-            floatingOrnamentsBar
-                .padding(.bottom, 16)
         }
     }
     
     // MARK: - Top Mode Toolbar
     
-    private var editorToolbar: some View {
+    private func editorToolbar(isCompact: Bool) -> some View {
         HStack(spacing: 12) {
             Picker("View Mode", selection: $viewState.isPreviewMode) {
-                Label("Edit", systemImage: "pencil").tag(false)
-                Label("Preview", systemImage: "eye.fill").tag(true)
+                if isCompact {
+                    Image(systemName: "pencil").tag(false)
+                    Image(systemName: "eye.fill").tag(true)
+                } else {
+                    Label("Edit", systemImage: "pencil").tag(false)
+                    Label("Preview", systemImage: "eye.fill").tag(true)
+                }
             }
             .pickerStyle(.segmented)
             .fixedSize()
             
             Spacer()
             
-            if !note.tags.isEmpty {
+            if !note.tags.isEmpty && !isCompact {
                 HStack(spacing: 4) {
                     Image(systemName: "tag.fill")
                         .font(.system(size: 10))
@@ -87,6 +104,7 @@ struct MarkdownEditorView: View {
                 .font(.system(size: 13, weight: .bold))
                 .foregroundColor(.secondary)
                 .lineLimit(1)
+                .truncationMode(.middle)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
@@ -95,8 +113,8 @@ struct MarkdownEditorView: View {
     
     // MARK: - Floating Liquid Glass Ornament Bar
     
-    private var floatingOrnamentsBar: some View {
-        HStack(spacing: 16) {
+    private func floatingOrnamentsBar(isCompact: Bool) -> some View {
+        HStack(spacing: 14) {
             // Quick Formatting Tools
             HStack(spacing: 8) {
                 Button(action: { insertText("# ") }) {
@@ -133,17 +151,19 @@ struct MarkdownEditorView: View {
             .font(.system(size: 13, weight: .medium))
             .foregroundColor(.primary)
             
-            Divider()
-                .frame(height: 16)
-            
-            // Note Stats Pill
-            HStack(spacing: 8) {
-                Label("\(note.wordCount) Words", systemImage: "text.alignleft")
-                Text("•")
-                Label("\(note.readingTimeMinutes)m read", systemImage: "clock")
+            if !isCompact {
+                Divider()
+                    .frame(height: 16)
+                
+                // Dynamic Note Stats Pill
+                HStack(spacing: 8) {
+                    Label("\(note.wordCount) Words", systemImage: "text.alignleft")
+                    Text("•")
+                    Label("\(note.readingTimeMinutes)m read", systemImage: "clock")
+                }
+                .font(.system(size: 11, weight: .medium))
+                .foregroundColor(.secondary)
             }
-            .font(.system(size: 11, weight: .medium))
-            .foregroundColor(.secondary)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
@@ -156,6 +176,7 @@ struct MarkdownEditorView: View {
                         .stroke(Color.primary.opacity(0.12), lineWidth: 1)
                 )
         )
+        .animation(.easeInOut(duration: 0.2), value: isCompact)
     }
     
     // MARK: - Text Insertion Helper

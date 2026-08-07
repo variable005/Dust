@@ -134,6 +134,9 @@ struct GraphView: View {
                 .onAppear {
                     buildGraph(in: geo.size)
                 }
+                .onChange(of: geo.size) { _, newSize in
+                    buildGraph(in: newSize)
+                }
             }
         }
         .frame(minWidth: 750, minHeight: 520)

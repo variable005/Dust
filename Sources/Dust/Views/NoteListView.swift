@@ -103,7 +103,7 @@ struct NoteListView: View {
                 .listStyle(.inset)
             }
         }
-        .frame(minWidth: 240, idealWidth: 280)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 
