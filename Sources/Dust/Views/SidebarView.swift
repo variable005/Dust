@@ -5,55 +5,7 @@ struct SidebarView: View {
     @Binding var isGraphViewPresented: Bool
     
     var body: some View {
-        VStack(spacing: 0) {
-            // App Branding Top Bar
-            HStack(spacing: 10) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(
-                            LinearGradient(
-                                colors: [.indigo, .purple, .blue],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                        .frame(width: 26, height: 26)
-                    Image(systemName: "sparkles")
-                        .font(.system(size: 13, weight: .bold))
-                        .foregroundColor(.white)
-                }
-                
-                Text("DUST")
-                    .font(.system(size: 15, weight: .black, design: .rounded))
-                    .tracking(2)
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [.primary, .primary.opacity(0.8)],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                    )
-                
-                Spacer()
-                
-                Button(action: { _ = store.createNote() }) {
-                    Image(systemName: "square.and.pencil")
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundColor(.accentColor)
-                        .padding(6)
-                        .background(Circle().fill(.thinMaterial))
-                }
-                .buttonStyle(.plain)
-                .help("New Note (Cmd + N)")
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
-            
-            Divider()
-                .opacity(0.6)
-            
-            // Navigation List
-            List {
+        List {
                 // MARK: - Library Quick Filters
                 Section {
                     ForEach(NoteStore.SidebarFilter.allCases) { filter in
@@ -178,7 +130,6 @@ struct SidebarView: View {
                 }
             }
             .listStyle(.sidebar)
-        }
     }
 }
 

@@ -82,29 +82,13 @@ struct MarkdownEditorView: View {
             .pickerStyle(.segmented)
             .fixedSize()
             
-            Spacer()
-            
-            if !note.tags.isEmpty && !isCompact {
-                HStack(spacing: 4) {
-                    Image(systemName: "tag.fill")
-                        .font(.system(size: 10))
-                        .foregroundColor(.blue)
-                    ForEach(Array(note.tags).prefix(3), id: \.self) { tag in
-                        Text("#\(tag)")
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundColor(.blue)
-                    }
-                }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(Capsule().fill(Color.blue.opacity(0.1)))
-            }
+            Spacer(minLength: 12)
             
             Text(note.title)
-                .font(.system(size: 13, weight: .bold))
-                .foregroundColor(.secondary)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundColor(.primary)
                 .lineLimit(1)
-                .truncationMode(.middle)
+                .truncationMode(.tail)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
