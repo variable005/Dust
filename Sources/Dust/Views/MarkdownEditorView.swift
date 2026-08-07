@@ -1,15 +1,25 @@
 import SwiftUI
 import AppKit
 
-final class EditorViewState: ObservableObject {
+final class EditorViewModel: ObservableObject {
+    @Published var content: String = ""
     @Published var isPreviewMode: Bool = false
+    private var currentNoteId: UUID?
+    
+    func sync(with note: Note) {
+        if currentNoteId != note.id {
+            currentNoteId = note.id
+            content = note.content
+        }
+    }
 }
 
 struct MarkdownEditorView: View {
     let note: Note
     var onContentChange: (String) -> Void
     
-    @StateObject private var viewState = EditorViewState()
+    @StateObject private var viewModel = EditorViewModel()
+    @FocusState private var isFocused: Bool
     
     var body: some View {
         GeometryReader { geometry in
@@ -25,9 +35,9 @@ struct MarkdownEditorView: View {
                     
                     // Main Editor / Preview Canvas
                     ZStack {
-                        if viewState.isPreviewMode {
+                        if viewModel.isPreviewMode {
                             ScrollView {
-                                MarkdownPreview(content: note.content)
+                                MarkdownPreview(content: viewModel.content)
                                     .padding(.horizontal, horizontalMargin)
                                     .padding(.top, 24)
                                     .padding(.bottom, 90)
@@ -38,23 +48,23 @@ struct MarkdownEditorView: View {
                         } else {
                             HStack {
                                 Spacer(minLength: 0)
-                                TextEditor(text: Binding(
-                                    get: { note.content },
-                                    set: { newValue in
-                                        onContentChange(newValue)
-                                    }
-                                ))
-                                .font(.system(size: 14, weight: .regular, design: .monospaced))
-                                .lineSpacing(6)
-                                .scrollContentBackground(.hidden)
-                                .background(.ultraThinMaterial)
-                                .padding(.horizontal, horizontalMargin)
-                                .padding(.top, 20)
-                                .padding(.bottom, 90)
-                                .frame(maxWidth: 850)
+                                TextEditor(text: $viewModel.content)
+                                    .focused($isFocused)
+                                    .font(.system(size: 14, weight: .regular, design: .monospaced))
+                                    .lineSpacing(6)
+                                    .scrollContentBackground(.hidden)
+                                    .background(Color.clear)
+                                    .padding(.horizontal, horizontalMargin)
+                                    .padding(.top, 20)
+                                    .padding(.bottom, 90)
+                                    .frame(maxWidth: 850)
                                 Spacer(minLength: 0)
                             }
                             .background(.ultraThinMaterial)
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                isFocused = true
+                            }
                         }
                     }
                 }
@@ -64,13 +74,26 @@ struct MarkdownEditorView: View {
                     .padding(.bottom, 16)
             }
         }
+        .onAppear {
+            viewModel.sync(with: note)
+            isFocused = true
+        }
+        .onChange(of: note.id) { _, _ in
+            viewModel.sync(with: note)
+            isFocused = true
+        }
+        .onChange(of: viewModel.content) { _, newText in
+            if newText != note.content {
+                onContentChange(newText)
+            }
+        }
     }
     
     // MARK: - Top Mode Toolbar
     
     private func editorToolbar(isCompact: Bool) -> some View {
         HStack(spacing: 12) {
-            Picker("View Mode", selection: $viewState.isPreviewMode) {
+            Picker("View Mode", selection: $viewModel.isPreviewMode) {
                 if isCompact {
                     Image(systemName: "pencil").tag(false)
                     Image(systemName: "eye.fill").tag(true)
@@ -166,8 +189,7 @@ struct MarkdownEditorView: View {
     // MARK: - Text Insertion Helper
     
     private func insertText(_ prefix: String, suffix: String = "") {
-        let newContent = note.content + "\(prefix)\(suffix)"
-        onContentChange(newContent)
+        viewModel.content += "\(prefix)\(suffix)"
     }
 }
 
