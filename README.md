@@ -1,10 +1,10 @@
-# Dust 🚀
+# Dust
 
 **Dust** is a high-performance, 100% offline native macOS note-taking application built in **Swift** and **SwiftUI**. Designed around Apple's modern **Liquid Glass visual paradigm**, Dust stores your notes as plain Markdown (`.md`) files directly on your local file system with zero cloud dependencies or network latency.
 
 ---
 
-## ✨ Features
+## Features
 
 - **Liquid Glass Aesthetics**: Native translucent materials (`.ultraThinMaterial`), dynamic background blending, and vibrant system icon highlights tailored for macOS.
 - **Floating Formatting Ornaments**: Sleek bottom floating capsule pod providing instant access to Markdown formatting tools (`# Header`, `**Bold**`, `*Italic*`, `` `Code` ``, `- [ ] Checklist`, `[[WikiLink]]`) alongside real-time word count and reading duration metrics.
@@ -16,7 +16,7 @@
 
 ---
 
-## 🛠️ Architecture & Tech Stack
+## Architecture & Tech Stack
 
 - **Language**: Swift 5.9+ (Swift 6 strict concurrency ready)
 - **UI Framework**: SwiftUI & AppKit (`NavigationSplitView`, `.inspector`, `Canvas`)
@@ -25,7 +25,7 @@
 
 ---
 
-## 🚀 How to Build & Run
+## How to Build & Run
 
 ### Prerequisites
 - macOS 14.0 (Sonoma) or macOS 15.0+ (Sequoia)
@@ -55,12 +55,12 @@ The compiled binary will be located at `.build/release/Dust`.
 
 ---
 
-## ⌨️ Keyboard Shortcuts
+## Keyboard Shortcuts
 
 | Action | Shortcut |
 | :--- | :--- |
-| **New Note** | `⌘ + N` |
+| **New Note** | `Cmd + N` |
 | **Quick Scratchpad** | `Cmd + Shift + N` / Toolbar |
-| **Save Quick Note** | `⌘ + Return` |
+| **Save Quick Note** | `Cmd + Return` |
 | **Close Modal / Graph** | `Escape` |
 | **Toggle Inspector** | Toolbar Button |
