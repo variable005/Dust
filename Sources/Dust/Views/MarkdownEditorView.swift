@@ -48,12 +48,7 @@ struct MarkdownEditorView: View {
                         } else {
                             HStack {
                                 Spacer(minLength: 0)
-                                TextEditor(text: $viewModel.content)
-                                    .focused($isFocused)
-                                    .font(.system(size: 14, weight: .regular, design: .monospaced))
-                                    .lineSpacing(6)
-                                    .scrollContentBackground(.hidden)
-                                    .background(Color.clear)
+                                MacEditorView(text: $viewModel.content)
                                     .padding(.horizontal, horizontalMargin)
                                     .padding(.top, 20)
                                     .padding(.bottom, 90)
@@ -61,10 +56,6 @@ struct MarkdownEditorView: View {
                                 Spacer(minLength: 0)
                             }
                             .background(.ultraThinMaterial)
-                            .contentShape(Rectangle())
-                            .onTapGesture {
-                                isFocused = true
-                            }
                         }
                     }
                 }
@@ -262,6 +253,65 @@ struct MarkdownPreview: View {
     private func formattedMarkdown(_ text: String) -> AttributedString {
         let options = AttributedString.MarkdownParsingOptions(interpretedSyntax: .inlineOnlyPreservingWhitespace)
         return (try? AttributedString(markdown: text, options: options)) ?? AttributedString(text)
+    }
+}
+
+// MARK: - Native AppKit NSTextView Wrapper for Reliable Keyboard Focus
+
+struct MacEditorView: NSViewRepresentable {
+    @Binding var text: String
+    
+    class Coordinator: NSObject, NSTextViewDelegate {
+        var parent: MacEditorView
+        
+        init(_ parent: MacEditorView) {
+            self.parent = parent
+        }
+        
+        func textDidChange(_ notification: Notification) {
+            guard let textView = notification.object as? NSTextView else { return }
+            if parent.text != textView.string {
+                parent.text = textView.string
+            }
+        }
+    }
+    
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+    
+    func makeNSView(context: Context) -> NSScrollView {
+        let scrollView = NSTextView.scrollableTextView()
+        guard let textView = scrollView.documentView as? NSTextView else {
+            return scrollView
+        }
+        
+        textView.delegate = context.coordinator
+        textView.isEditable = true
+        textView.isSelectable = true
+        textView.isRichText = false
+        textView.allowsUndo = true
+        textView.font = NSFont.monospacedSystemFont(ofSize: 14, weight: .regular)
+        textView.textColor = NSColor.textColor
+        textView.drawsBackground = false
+        
+        scrollView.drawsBackground = false
+        scrollView.hasVerticalScroller = true
+        scrollView.hasHorizontalScroller = false
+        scrollView.autohidesScrollers = true
+        
+        DispatchQueue.main.async {
+            textView.window?.makeFirstResponder(textView)
+        }
+        
+        return scrollView
+    }
+    
+    func updateNSView(_ nsView: NSScrollView, context: Context) {
+        guard let textView = nsView.documentView as? NSTextView else { return }
+        if textView.string != text {
+            textView.string = text
+        }
     }
 }
 
