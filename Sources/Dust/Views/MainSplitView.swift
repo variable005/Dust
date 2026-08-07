@@ -13,8 +13,10 @@ struct MainSplitView: View {
     var body: some View {
         NavigationSplitView {
             SidebarView(store: store, isGraphViewPresented: $mainState.isGraphViewPresented)
+                .navigationSplitViewColumnWidth(min: 210, ideal: 230, max: 280)
         } content: {
             NoteListView(store: store)
+                .navigationSplitViewColumnWidth(min: 260, ideal: 290, max: 360)
         } detail: {
             if let selectedId = store.selectedNoteId,
                let noteIndex = store.notes.firstIndex(where: { $0.id == selectedId }) {
@@ -26,7 +28,7 @@ struct MainSplitView: View {
                 )
                 .inspector(isPresented: $mainState.isInspectorPresented) {
                     InspectorView(note: store.notes[noteIndex], store: store)
-                        .inspectorColumnWidth(min: 240, ideal: 280, max: 360)
+                        .inspectorColumnWidth(min: 240, ideal: 270, max: 320)
                 }
                 .toolbar {
                     ToolbarItemGroup(placement: .primaryAction) {

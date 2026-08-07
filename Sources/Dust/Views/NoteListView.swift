@@ -112,31 +112,36 @@ struct NoteRowView: View {
     @ObservedObject var store: NoteStore
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 5) {
-            HStack(alignment: .center, spacing: 6) {
-                if note.isPinned {
-                    Image(systemName: "pin.fill")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(.linearGradient(colors: [.orange, .red], startPoint: .top, endPoint: .bottom))
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                HStack(spacing: 4) {
+                    if note.isPinned {
+                        Image(systemName: "pin.fill")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(LinearGradient(colors: [.orange, .red], startPoint: .top, endPoint: .bottom))
+                    }
+                    if note.isFavorite {
+                        Image(systemName: "star.fill")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(LinearGradient(colors: [.yellow, .orange], startPoint: .top, endPoint: .bottom))
+                    }
                 }
-                if note.isFavorite {
-                    Image(systemName: "star.fill")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(.linearGradient(colors: [.yellow, .orange], startPoint: .top, endPoint: .bottom))
-                }
+                
                 Text(note.title)
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.system(size: 13, weight: .bold))
                     .lineLimit(1)
                     .foregroundColor(.primary)
-                Spacer()
+                
+                Spacer(minLength: 8)
+                
                 Text(note.modifiedAt.formatted(date: .numeric, time: .omitted))
-                    .font(.system(size: 10, weight: .medium))
+                    .font(.system(size: 10, weight: .medium, design: .monospaced))
                     .foregroundColor(.secondary)
             }
             
             if !note.snippet.isEmpty {
                 Text(note.snippet)
-                    .font(.system(size: 12))
+                    .font(.system(size: 12, weight: .regular))
                     .foregroundColor(.secondary)
                     .lineLimit(2)
                     .lineSpacing(2)
@@ -146,20 +151,24 @@ struct NoteRowView: View {
                 HStack(spacing: 4) {
                     ForEach(Array(note.tags).prefix(3), id: \.self) { tag in
                         Text("#\(tag)")
-                            .font(.system(size: 10, weight: .semibold))
-                            .padding(.horizontal, 5)
+                            .font(.system(size: 10, weight: .bold))
+                            .padding(.horizontal, 6)
                             .padding(.vertical, 2)
                             .background(
-                                Capsule()
-                                    .fill(Color.blue.opacity(0.12))
+                                RoundedRectangle(cornerRadius: 5)
+                                    .fill(Color.accentColor.opacity(0.12))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 5)
+                                            .stroke(Color.accentColor.opacity(0.2), lineWidth: 0.5)
+                                    )
                             )
-                            .foregroundColor(.blue)
+                            .foregroundColor(.accentColor)
                     }
                 }
                 .padding(.top, 2)
             }
         }
-        .padding(.vertical, 5)
+        .padding(.vertical, 6)
         .contextMenu {
             Button(note.isPinned ? "Unpin Note" : "Pin Note") {
                 store.togglePin(id: note.id)
