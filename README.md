@@ -2,6 +2,8 @@
 
 **Dust** is a high-performance, 100% offline native macOS note-taking application built in **Swift** and **SwiftUI**. Designed around Apple's modern **Liquid Glass visual paradigm**, Dust stores your notes as plain Markdown (`.md`) files directly on your local file system with zero cloud dependencies or network latency.
 
+> **Disclaimer**: Dust is currently in active development. Builds may be unstable, and features, UI layouts, or data contracts are subject to frequent changes.
+
 ---
 
 ## Features
