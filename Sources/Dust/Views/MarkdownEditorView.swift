@@ -16,10 +16,39 @@ final class EditorViewModel: ObservableObject {
 
 struct MarkdownEditorView: View {
     let note: Note
+    @ObservedObject var store: NoteStore
     var onContentChange: (String) -> Void
     
     @StateObject private var viewModel = EditorViewModel()
     @FocusState private var isFocused: Bool
+    
+    // MARK: - Autocomplete Computation
+    
+    private var wikiLinkQuery: String? {
+        guard let range = viewModel.content.range(of: "\\[\\[[^\\]]*$", options: .regularExpression) else { return nil }
+        let raw = String(viewModel.content[range])
+        return String(raw.dropFirst(2))
+    }
+    
+    private var tagQuery: String? {
+        guard let range = viewModel.content.range(of: "#[A-Za-z0-9_/-]*$", options: .regularExpression) else { return nil }
+        let raw = String(viewModel.content[range])
+        return String(raw.dropFirst(1))
+    }
+    
+    private var matchingWikiLinks: [String] {
+        guard let query = wikiLinkQuery else { return [] }
+        let titles = store.notes.map { $0.title }
+        if query.isEmpty { return titles }
+        return titles.filter { $0.localizedCaseInsensitiveContains(query) }
+    }
+    
+    private var matchingTags: [String] {
+        guard let query = tagQuery else { return [] }
+        let tags = store.tagCounts.map { $0.tag }
+        if query.isEmpty { return tags }
+        return tags.filter { $0.localizedCaseInsensitiveContains(query) }
+    }
     
     var body: some View {
         GeometryReader { geometry in
@@ -60,9 +89,26 @@ struct MarkdownEditorView: View {
                     }
                 }
                 
-                // Floating Liquid Glass Ornaments Bar (Apple Design Pattern)
-                floatingOrnamentsBar(isCompact: isCompact)
-                    .padding(.bottom, 16)
+                VStack(spacing: 8) {
+                    // Autocomplete Suggestions Box
+                    if wikiLinkQuery != nil && !matchingWikiLinks.isEmpty {
+                        autocompleteBox(title: "WIKILINK SUGGESTIONS", items: matchingWikiLinks, icon: "link") { selectedTitle in
+                            if let range = viewModel.content.range(of: "\\[\\[[^\\]]*$", options: .regularExpression) {
+                                viewModel.content.replaceSubrange(range, with: "[[\(selectedTitle)]]")
+                            }
+                        }
+                    } else if tagQuery != nil && !matchingTags.isEmpty {
+                        autocompleteBox(title: "TAG SUGGESTIONS", items: matchingTags, icon: "number") { selectedTag in
+                            if let range = viewModel.content.range(of: "#[A-Za-z0-9_/-]*$", options: .regularExpression) {
+                                viewModel.content.replaceSubrange(range, with: "#\(selectedTag) ")
+                            }
+                        }
+                    }
+                    
+                    // Floating Liquid Glass Ornaments Bar (Apple Design Pattern)
+                    floatingOrnamentsBar(isCompact: isCompact)
+                }
+                .padding(.bottom, 16)
             }
         }
         .onAppear {
@@ -175,6 +221,61 @@ struct MarkdownEditorView: View {
                 )
         )
         .animation(.easeInOut(duration: 0.2), value: isCompact)
+    }
+    
+    // MARK: - Autocomplete Overlay Box
+    
+    private func autocompleteBox(title: String, items: [String], icon: String, onSelect: @escaping (String) -> Void) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                Image(systemName: icon)
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundColor(.accentColor)
+                Text(title)
+                    .font(.system(size: 9, weight: .bold, design: .rounded))
+                    .tracking(1.0)
+                    .foregroundColor(.secondary)
+            }
+            .padding(.horizontal, 10)
+            .padding(.top, 8)
+            
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 2) {
+                    ForEach(items.prefix(5), id: \.self) { item in
+                        Button(action: { onSelect(item) }) {
+                            HStack(spacing: 8) {
+                                Image(systemName: icon)
+                                    .font(.system(size: 11))
+                                    .foregroundColor(.secondary)
+                                Text(item)
+                                    .font(.system(size: 12, weight: .medium))
+                                    .foregroundColor(.primary)
+                                    .lineLimit(1)
+                                Spacer()
+                            }
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 5)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .background(RoundedRectangle(cornerRadius: 6).fill(Color.primary.opacity(0.04)))
+                    }
+                }
+                .padding(.horizontal, 6)
+                .padding(.bottom, 6)
+            }
+            .frame(maxHeight: 140)
+        }
+        .frame(width: 280)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(.regularMaterial)
+                .shadow(color: Color.black.opacity(0.22), radius: 12, x: 0, y: 4)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(Color.primary.opacity(0.12), lineWidth: 1)
+                )
+        )
     }
     
     // MARK: - Text Insertion Helper

@@ -22,6 +22,7 @@ struct MainSplitView: View {
                let noteIndex = store.notes.firstIndex(where: { $0.id == selectedId }) {
                 MarkdownEditorView(
                     note: store.notes[noteIndex],
+                    store: store,
                     onContentChange: { newContent in
                         store.updateNoteContent(id: selectedId, newContent: newContent)
                     }
