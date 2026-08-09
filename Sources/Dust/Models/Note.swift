@@ -115,4 +115,20 @@ public struct Note: Identifiable, Hashable, Codable, Sendable {
         let wpm = 200
         return max(1, Int(ceil(Double(wordCount) / Double(wpm))))
     }
+    
+    /// Extracted cover banner style (e.g. "indigo", "sunset", "emerald", "cyan", "obsidian")
+    public var bannerStyle: String? {
+        guard let range = content.range(of: "(?m)^banner:\\s*[\"']?([^\"'\\r\\n]+)[\"']?", options: .regularExpression) else { return nil }
+        let raw = String(content[range])
+        let val = raw.replacingOccurrences(of: "banner:", with: "").trimmingCharacters(in: CharacterSet(charactersIn: " \"'"))
+        return val.isEmpty ? nil : val
+    }
+    
+    /// Extracted header icon emoji (e.g. "🚀", "📝", "💡", "🎨", "⚡️")
+    public var iconEmoji: String? {
+        guard let range = content.range(of: "(?m)^icon:\\s*[\"']?([^\"'\\r\\n]+)[\"']?", options: .regularExpression) else { return nil }
+        let raw = String(content[range])
+        let val = raw.replacingOccurrences(of: "icon:", with: "").trimmingCharacters(in: CharacterSet(charactersIn: " \"'"))
+        return val.isEmpty ? nil : val
+    }
 }

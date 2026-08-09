@@ -67,23 +67,29 @@ struct MarkdownEditorView: View {
                     ZStack {
                         if viewModel.isPreviewMode {
                             ScrollView {
-                                MarkdownPreview(content: viewModel.content)
-                                    .padding(.horizontal, horizontalMargin)
-                                    .padding(.top, 24)
-                                    .padding(.bottom, 90)
-                                    .frame(maxWidth: 800, alignment: .leading)
-                                    .frame(maxWidth: .infinity, alignment: .center)
+                                VStack(alignment: .leading, spacing: 12) {
+                                    noteBannerHeader
+                                    MarkdownPreview(content: viewModel.content)
+                                }
+                                .padding(.horizontal, horizontalMargin)
+                                .padding(.top, 12)
+                                .padding(.bottom, 90)
+                                .frame(maxWidth: 800, alignment: .leading)
+                                .frame(maxWidth: .infinity, alignment: .center)
                             }
                             .background(.ultraThinMaterial)
                         } else {
-                            HStack {
-                                Spacer(minLength: 0)
-                                MacEditorView(text: $viewModel.content, isAutoCorrectEnabled: isAutoCorrectEnabled)
-                                    .padding(.horizontal, horizontalMargin)
-                                    .padding(.top, 20)
-                                    .padding(.bottom, 90)
-                                    .frame(maxWidth: 850)
-                                Spacer(minLength: 0)
+                            VStack(spacing: 0) {
+                                noteBannerHeader
+                                HStack {
+                                    Spacer(minLength: 0)
+                                    MacEditorView(text: $viewModel.content, isAutoCorrectEnabled: isAutoCorrectEnabled)
+                                        .padding(.horizontal, horizontalMargin)
+                                        .padding(.top, 12)
+                                        .padding(.bottom, 90)
+                                        .frame(maxWidth: 850)
+                                    Spacer(minLength: 0)
+                                }
                             }
                             .background(.ultraThinMaterial)
                         }
@@ -296,6 +302,160 @@ struct MarkdownEditorView: View {
                         .stroke(Color.primary.opacity(0.12), lineWidth: 1)
                 )
         )
+    }
+    
+    // MARK: - Banner & Frontmatter Helpers
+    
+    private var bannerPresets: [(id: String, name: String, colors: [Color])] {
+        [
+            ("indigo", "Cosmic Indigo", [.indigo, .purple, .blue]),
+            ("sunset", "Sunset Flame", [.orange, .red, .purple]),
+            ("emerald", "Emerald Dawn", [.mint, .teal, .green]),
+            ("cyan", "Liquid Cyan", [.cyan, .blue, .indigo]),
+            ("obsidian", "Obsidian Dark", [.black, .gray.opacity(0.8), .black])
+        ]
+    }
+    
+    private var emojiPresets: [String] {
+        ["🚀", "📝", "💡", "🎨", "⚡️", "🧠", "🔬", "📌", "✨", "🔥", "📂", "💻", "📚", "🎯", "🌐"]
+    }
+
+    private func gradient(for style: String?) -> LinearGradient {
+        let preset = bannerPresets.first(where: { $0.id == style }) ?? bannerPresets[0]
+        return LinearGradient(colors: preset.colors, startPoint: .topLeading, endPoint: .bottomTrailing)
+    }
+
+    private func updateFrontmatter(banner: String?, icon: String?) {
+        var newContent = viewModel.content
+        var currentBanner = note.bannerStyle
+        var currentIcon = note.iconEmoji
+        
+        if let b = banner { currentBanner = b.isEmpty ? nil : b }
+        if let i = icon { currentIcon = i.isEmpty ? nil : i }
+        
+        // Remove existing frontmatter block if present
+        if newContent.hasPrefix("---") {
+            if let closingRange = newContent.range(of: "---", options: [], range: newContent.index(newContent.startIndex, offsetBy: 3)..<newContent.endIndex) {
+                newContent.removeSubrange(newContent.startIndex...closingRange.upperBound)
+                newContent = newContent.trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+        }
+        
+        // Build new YAML frontmatter block
+        if currentBanner != nil || currentIcon != nil {
+            var front = "---\n"
+            if let b = currentBanner { front += "banner: \"\(b)\"\n" }
+            if let i = currentIcon { front += "icon: \"\(i)\"\n" }
+            front += "---\n\n"
+            newContent = front + newContent
+        }
+        
+        viewModel.content = newContent
+    }
+
+    private var noteBannerHeader: some View {
+        VStack(spacing: 0) {
+            if let banner = note.bannerStyle {
+                ZStack(alignment: .bottomLeading) {
+                    Rectangle()
+                        .fill(gradient(for: banner))
+                        .frame(height: 110)
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12)
+                                .stroke(Color.white.opacity(0.15), lineWidth: 1)
+                        )
+                    
+                    HStack {
+                        Spacer()
+                        Menu {
+                            Text("Change Banner Style").font(.caption)
+                            Divider()
+                            ForEach(bannerPresets, id: \.id) { preset in
+                                Button(preset.name) {
+                                    updateFrontmatter(banner: preset.id, icon: nil)
+                                }
+                            }
+                            Divider()
+                            Button("Remove Banner", role: .destructive) {
+                                updateFrontmatter(banner: "", icon: nil)
+                            }
+                        } label: {
+                            Label("Change Cover", systemImage: "photo.on.rectangle")
+                                .font(.system(size: 11, weight: .semibold))
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 5)
+                                .background(Capsule().fill(.ultraThinMaterial))
+                                .foregroundColor(.primary)
+                        }
+                        .menuStyle(.borderlessButton)
+                        .padding(10)
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 12)
+            }
+            
+            HStack(spacing: 12) {
+                if let icon = note.iconEmoji {
+                    Menu {
+                        Text("Select Header Icon").font(.caption)
+                        Divider()
+                        ForEach(emojiPresets, id: \.self) { emoji in
+                            Button("\(emoji) Emoji") {
+                                updateFrontmatter(banner: nil, icon: emoji)
+                            }
+                        }
+                        Divider()
+                        Button("Remove Icon", role: .destructive) {
+                            updateFrontmatter(banner: nil, icon: "")
+                        }
+                    } label: {
+                        Text(icon)
+                            .font(.system(size: 32))
+                            .padding(8)
+                            .background(Circle().fill(.thinMaterial))
+                    }
+                    .menuStyle(.borderlessButton)
+                }
+                
+                HStack(spacing: 8) {
+                    if note.bannerStyle == nil {
+                        Menu {
+                            ForEach(bannerPresets, id: \.id) { preset in
+                                Button("Banner: \(preset.name)") {
+                                    updateFrontmatter(banner: preset.id, icon: nil)
+                                }
+                            }
+                        } label: {
+                            Label("Add Cover Banner", systemImage: "photo")
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundColor(.secondary)
+                        }
+                        .menuStyle(.borderlessButton)
+                    }
+                    
+                    if note.iconEmoji == nil {
+                        Menu {
+                            ForEach(emojiPresets, id: \.self) { emoji in
+                                Button("Icon: \(emoji)") {
+                                    updateFrontmatter(banner: nil, icon: emoji)
+                                }
+                            }
+                        } label: {
+                            Label("Add Icon", systemImage: "face.smiling")
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundColor(.secondary)
+                        }
+                        .menuStyle(.borderlessButton)
+                    }
+                }
+                .padding(.leading, note.iconEmoji == nil ? 16 : 0)
+                .padding(.top, note.bannerStyle != nil ? 6 : 10)
+                
+                Spacer()
+            }
+        }
     }
     
     // MARK: - Text Insertion Helper
