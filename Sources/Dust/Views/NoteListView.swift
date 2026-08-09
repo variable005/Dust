@@ -52,15 +52,27 @@ struct NoteListView: View {
                 .fixedSize()
                 .help("Sort Options")
                 
-                Button(action: { _ = store.createNote() }) {
-                    Image(systemName: "square.and.pencil")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(.blue)
-                        .padding(6)
-                        .background(Circle().fill(.thinMaterial))
+                if store.selectedFilter == .trash && !store.filteredNotes.isEmpty {
+                    Button(action: { store.emptyTrash() }) {
+                        Image(systemName: "trash.slash.fill")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(.red)
+                            .padding(6)
+                            .background(Circle().fill(.thinMaterial))
+                    }
+                    .buttonStyle(.plain)
+                    .help("Empty Trash")
+                } else {
+                    Button(action: { _ = store.createNote() }) {
+                        Image(systemName: "square.and.pencil")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(.blue)
+                            .padding(6)
+                            .background(Circle().fill(.thinMaterial))
+                    }
+                    .buttonStyle(.plain)
+                    .help("Create New Note (Cmd + N)")
                 }
-                .buttonStyle(.plain)
-                .help("Create New Note (Cmd + N)")
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
@@ -170,15 +182,25 @@ struct NoteRowView: View {
         }
         .padding(.vertical, 6)
         .contextMenu {
-            Button(note.isPinned ? "Unpin Note" : "Pin Note") {
-                store.togglePin(id: note.id)
-            }
-            Button(note.isFavorite ? "Remove Favorite" : "Add Favorite") {
-                store.toggleFavorite(id: note.id)
-            }
-            Divider()
-            Button("Delete Note", role: .destructive) {
-                store.deleteNote(id: note.id)
+            if note.isTrashed {
+                Button("Restore Note") {
+                    store.restoreNote(id: note.id)
+                }
+                Divider()
+                Button("Delete Permanently", role: .destructive) {
+                    store.permanentlyDeleteNote(id: note.id)
+                }
+            } else {
+                Button(note.isPinned ? "Unpin Note" : "Pin Note") {
+                    store.togglePin(id: note.id)
+                }
+                Button(note.isFavorite ? "Remove Favorite" : "Add Favorite") {
+                    store.toggleFavorite(id: note.id)
+                }
+                Divider()
+                Button("Move to Trash", role: .destructive) {
+                    store.deleteNote(id: note.id)
+                }
             }
         }
     }

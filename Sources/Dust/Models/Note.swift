@@ -8,6 +8,7 @@ public struct Note: Identifiable, Hashable, Codable, Sendable {
     public var modifiedAt: Date
     public var isPinned: Bool
     public var isFavorite: Bool
+    public var isTrashed: Bool
     
     public init(
         id: UUID = UUID(),
@@ -16,7 +17,8 @@ public struct Note: Identifiable, Hashable, Codable, Sendable {
         createdAt: Date = Date(),
         modifiedAt: Date = Date(),
         isPinned: Bool = false,
-        isFavorite: Bool = false
+        isFavorite: Bool = false,
+        isTrashed: Bool = false
     ) {
         self.id = id
         self.relativePath = relativePath
@@ -25,6 +27,7 @@ public struct Note: Identifiable, Hashable, Codable, Sendable {
         self.modifiedAt = modifiedAt
         self.isPinned = isPinned
         self.isFavorite = isFavorite
+        self.isTrashed = isTrashed
     }
     
     // MARK: - Derived Properties

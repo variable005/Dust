@@ -160,20 +160,20 @@ public final class NoteStore: ObservableObject {
         
         // 1. Sidebar filter
         switch selectedFilter {
-        case .allNotes: break
-        case .favorites: list = list.filter { $0.isFavorite }
-        case .pinned: list = list.filter { $0.isPinned }
-        case .trash: break
+        case .allNotes: list = list.filter { !$0.isTrashed }
+        case .favorites: list = list.filter { !$0.isTrashed && $0.isFavorite }
+        case .pinned: list = list.filter { !$0.isTrashed && $0.isPinned }
+        case .trash: list = list.filter { $0.isTrashed }
         }
         
         // 2. Tag filter
         if let tag = selectedTag {
-            list = list.filter { $0.tags.contains(tag) }
+            list = list.filter { !$0.isTrashed && $0.tags.contains(tag) }
         }
         
         // 3. Folder filter
         if let folder = selectedFolder, !folder.isEmpty {
-            list = list.filter { $0.folderPath == folder }
+            list = list.filter { !$0.isTrashed && $0.folderPath == folder }
         }
         
         // 4. Search query
@@ -280,14 +280,37 @@ public final class NoteStore: ObservableObject {
     
     public func deleteNote(id: UUID) {
         guard let index = notes.firstIndex(where: { $0.id == id }) else { return }
+        notes[index].isTrashed = true
+        if selectedNoteId == id {
+            selectedNoteId = filteredNotes.first?.id
+        }
+    }
+    
+    public func restoreNote(id: UUID) {
+        guard let index = notes.firstIndex(where: { $0.id == id }) else { return }
+        notes[index].isTrashed = false
+    }
+    
+    public func permanentlyDeleteNote(id: UUID) {
+        guard let index = notes.firstIndex(where: { $0.id == id }) else { return }
         let note = notes[index]
         let fileURL = rootFolderURL.appendingPathComponent(note.relativePath)
-        
         try? FileManager.default.removeItem(at: fileURL)
         notes.remove(at: index)
-        
         if selectedNoteId == id {
-            selectedNoteId = notes.first?.id
+            selectedNoteId = filteredNotes.first?.id
+        }
+    }
+    
+    public func emptyTrash() {
+        let trashed = notes.filter { $0.isTrashed }
+        for note in trashed {
+            let fileURL = rootFolderURL.appendingPathComponent(note.relativePath)
+            try? FileManager.default.removeItem(at: fileURL)
+        }
+        notes.removeAll { $0.isTrashed }
+        if selectedNoteId == nil || !filteredNotes.contains(where: { $0.id == selectedNoteId }) {
+            selectedNoteId = filteredNotes.first?.id
         }
     }
     

@@ -24,6 +24,17 @@ struct SidebarView: View {
                                     .font(.system(size: 13, weight: isSelected ? .semibold : .regular))
                                     .foregroundColor(isSelected ? .primary : .secondary)
                                 Spacer()
+                                if let count = filterCount(for: filter), count > 0 {
+                                    Text("\(count)")
+                                        .font(.system(size: 10, weight: .bold, design: .monospaced))
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 2)
+                                        .background(
+                                            Capsule()
+                                                .fill(isSelected ? Color.accentColor.opacity(0.2) : Color.primary.opacity(0.06))
+                                        )
+                                        .foregroundColor(isSelected ? .accentColor : .secondary)
+                                }
                             }
                             .padding(.vertical, 2)
                         }
@@ -130,6 +141,15 @@ struct SidebarView: View {
                 }
             }
             .listStyle(.sidebar)
+    }
+    
+    private func filterCount(for filter: NoteStore.SidebarFilter) -> Int? {
+        switch filter {
+        case .allNotes: return store.notes.filter { !$0.isTrashed }.count
+        case .favorites: return store.notes.filter { !$0.isTrashed && $0.isFavorite }.count
+        case .pinned: return store.notes.filter { !$0.isTrashed && $0.isPinned }.count
+        case .trash: return store.notes.filter { $0.isTrashed }.count
+        }
     }
 }
 
