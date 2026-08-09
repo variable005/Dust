@@ -19,6 +19,7 @@ struct MarkdownEditorView: View {
     @ObservedObject var store: NoteStore
     var onContentChange: (String) -> Void
     
+    @AppStorage("isAutoCorrectEnabled") private var isAutoCorrectEnabled: Bool = true
     @StateObject private var viewModel = EditorViewModel()
     @FocusState private var isFocused: Bool
     
@@ -77,7 +78,7 @@ struct MarkdownEditorView: View {
                         } else {
                             HStack {
                                 Spacer(minLength: 0)
-                                MacEditorView(text: $viewModel.content)
+                                MacEditorView(text: $viewModel.content, isAutoCorrectEnabled: isAutoCorrectEnabled)
                                     .padding(.horizontal, horizontalMargin)
                                     .padding(.top, 20)
                                     .padding(.bottom, 90)
@@ -141,6 +142,25 @@ struct MarkdownEditorView: View {
             }
             .pickerStyle(.segmented)
             .fixedSize()
+            
+            Button(action: { isAutoCorrectEnabled.toggle() }) {
+                HStack(spacing: 4) {
+                    Image(systemName: isAutoCorrectEnabled ? "text.badge.checkmark" : "text.badge.xmark")
+                    if !isCompact {
+                        Text(isAutoCorrectEnabled ? "Auto-Correct On" : "Auto-Correct Off")
+                    }
+                }
+                .font(.system(size: 11, weight: .semibold))
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(
+                    Capsule()
+                        .fill(isAutoCorrectEnabled ? Color.accentColor.opacity(0.12) : Color.primary.opacity(0.06))
+                )
+                .foregroundColor(isAutoCorrectEnabled ? .accentColor : .secondary)
+            }
+            .buttonStyle(.plain)
+            .help(isAutoCorrectEnabled ? "Auto-Correct is Enabled" : "Auto-Correct is Disabled")
             
             Spacer(minLength: 12)
             
@@ -361,6 +381,7 @@ struct MarkdownPreview: View {
 
 struct MacEditorView: NSViewRepresentable {
     @Binding var text: String
+    var isAutoCorrectEnabled: Bool = true
     
     class Coordinator: NSObject, NSTextViewDelegate {
         var parent: MacEditorView
@@ -392,6 +413,12 @@ struct MacEditorView: NSViewRepresentable {
         textView.isSelectable = true
         textView.isRichText = false
         textView.allowsUndo = true
+        textView.isContinuousSpellCheckingEnabled = isAutoCorrectEnabled
+        textView.isGrammarCheckingEnabled = isAutoCorrectEnabled
+        textView.isAutomaticSpellingCorrectionEnabled = isAutoCorrectEnabled
+        textView.isAutomaticTextReplacementEnabled = isAutoCorrectEnabled
+        textView.isAutomaticQuoteSubstitutionEnabled = true
+        textView.isAutomaticDashSubstitutionEnabled = true
         textView.font = NSFont.monospacedSystemFont(ofSize: 14, weight: .regular)
         textView.textColor = NSColor.textColor
         textView.drawsBackground = false
@@ -412,6 +439,12 @@ struct MacEditorView: NSViewRepresentable {
         guard let textView = nsView.documentView as? NSTextView else { return }
         if textView.string != text {
             textView.string = text
+        }
+        if textView.isAutomaticSpellingCorrectionEnabled != isAutoCorrectEnabled {
+            textView.isContinuousSpellCheckingEnabled = isAutoCorrectEnabled
+            textView.isGrammarCheckingEnabled = isAutoCorrectEnabled
+            textView.isAutomaticSpellingCorrectionEnabled = isAutoCorrectEnabled
+            textView.isAutomaticTextReplacementEnabled = isAutoCorrectEnabled
         }
     }
 }
