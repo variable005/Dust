@@ -49,9 +49,22 @@ public enum EditorFontFamily: String, CaseIterable, Identifiable {
     }
 }
 
+public enum EditorAction: Hashable {
+    case insertH1
+    case insertBold
+    case insertItalic
+    case insertInlineCode
+    case insertCodeBlock
+    case insertChecklist
+    case insertWikiLink
+    case insertTable
+    case insertImage
+}
+
 final class EditorViewModel: ObservableObject {
     @Published var content: String = ""
     @Published var isPreviewMode: Bool = false
+    @Published var activeAction: EditorAction? = nil
     private var currentNoteId: UUID?
     
     func sync(with note: Note) {
@@ -131,27 +144,21 @@ struct MarkdownEditorView: View {
                                 Spacer(minLength: 0)
                                 MacEditorView(
                                     text: $viewModel.content,
+                                    actionTrigger: $viewModel.activeAction,
                                     isAutoCorrectEnabled: isAutoCorrectEnabled,
                                     fontFamily: fontFamily,
                                     onPasteImage: { data, ext in
                                         if let relativePath = store.saveImageAsset(data: data, extension: ext) {
-                                            insertText("![Image](\(relativePath))\n")
+                                            viewModel.content += "\n![Image](\(relativePath))\n"
                                         }
                                     },
                                     onDropImageFile: { url in
                                         if let data = try? Data(contentsOf: url),
                                            let relativePath = store.saveImageAsset(data: data, extension: url.pathExtension.lowercased()) {
-                                            insertText("![Image](\(relativePath))\n")
+                                            viewModel.content += "\n![Image](\(relativePath))\n"
                                         }
                                     },
-                                    onInsertTable: { insertTableTemplate() },
                                     onInsertImage: { selectImageFile() },
-                                    onInsertCodeBlock: { insertText("\n```swift\n// Code snippet\n```\n") },
-                                    onInsertBold: { insertText("**", suffix: "**") },
-                                    onInsertItalic: { insertText("*", suffix: "*") },
-                                    onInsertH1: { insertText("# ") },
-                                    onInsertH2: { insertText("## ") },
-                                    onInsertWikiLink: { insertText("[[", suffix: "]]") },
                                     onExportPDF: { NoteExporter.exportToPDF(note: note, store: store) },
                                     onExportHTML: { NoteExporter.exportToHTML(note: note, store: store) },
                                     onExportMD: { NoteExporter.exportToMarkdown(note: note) },
@@ -235,37 +242,37 @@ struct MarkdownEditorView: View {
             
             // Formatting, Image & Font Tools
             HStack(spacing: 10) {
-                Button(action: { insertText("# ") }) {
+                Button(action: { viewModel.activeAction = .insertH1 }) {
                     Image(systemName: "number")
                 }
                 .help("Heading H1")
                 
-                Button(action: { insertText("**", suffix: "**") }) {
+                Button(action: { viewModel.activeAction = .insertBold }) {
                     Image(systemName: "bold")
                 }
                 .help("Bold")
                 
-                Button(action: { insertText("*", suffix: "*") }) {
+                Button(action: { viewModel.activeAction = .insertItalic }) {
                     Image(systemName: "italic")
                 }
                 .help("Italic")
                 
-                Button(action: { insertText("`", suffix: "`") }) {
+                Button(action: { viewModel.activeAction = .insertInlineCode }) {
                     Image(systemName: "code")
                 }
                 .help("Inline Code")
                 
-                Button(action: { insertText("\n```swift\n// Code\n```\n") }) {
+                Button(action: { viewModel.activeAction = .insertCodeBlock }) {
                     Image(systemName: "chevron.left.forwardslash.chevron.right")
                 }
                 .help("Insert Code Block (```)")
                 
-                Button(action: { insertText("- [ ] ") }) {
+                Button(action: { viewModel.activeAction = .insertChecklist }) {
                     Image(systemName: "checkmark.square")
                 }
                 .help("Checklist Item")
                 
-                Button(action: { insertText("[[", suffix: "]]") }) {
+                Button(action: { viewModel.activeAction = .insertWikiLink }) {
                     Image(systemName: "link")
                 }
                 .help("Insert WikiLink [[Note Title]]")
@@ -275,7 +282,7 @@ struct MarkdownEditorView: View {
                 }
                 .help("Insert Image File")
                 
-                Button(action: { insertTableTemplate() }) {
+                Button(action: { viewModel.activeAction = .insertTable }) {
                     Image(systemName: "tablecells")
                 }
                 .help("Insert Markdown Table")
@@ -368,14 +375,9 @@ struct MarkdownEditorView: View {
         if panel.runModal() == .OK, let url = panel.url {
             if let data = try? Data(contentsOf: url),
                let relativePath = store.saveImageAsset(data: data, extension: url.pathExtension.lowercased()) {
-                insertText("![Image](\(relativePath))\n")
+                viewModel.content += "\n![Image](\(relativePath))\n"
             }
         }
-    }
-    
-    private func insertTableTemplate() {
-        let snippet = "\n| Header 1 | Header 2 | Header 3 |\n| --- | --- | --- |\n| Item A | Details B | Status C |\n| Item D | Details E | Status F |\n"
-        insertText(snippet)
     }
     
     // MARK: - Autocomplete Overlay Box
@@ -430,14 +432,6 @@ struct MarkdownEditorView: View {
                         .stroke(Color.primary.opacity(0.12), lineWidth: 1)
                 )
         )
-    }
-    
-    private func insertText(_ text: String, suffix: String = "") {
-        if suffix.isEmpty {
-            viewModel.content += text
-        } else {
-            viewModel.content += "\(text)\(suffix)"
-        }
     }
     
     // MARK: - Banner Header
@@ -688,29 +682,112 @@ struct MarkdownTableView: View {
 
 final class CodeBlockState: ObservableObject {
     @Published var isCopied: Bool = false
+    @Published var isWrapLines: Bool = false
+    @Published var currentLanguage: String = ""
+    
+    init(language: String) {
+        self.currentLanguage = language.isEmpty ? "cpp" : language.lowercased()
+    }
 }
 
 struct MarkdownCodeBlockView: View {
     let language: String
     let code: String
-    @StateObject private var state = CodeBlockState()
+    @StateObject private var state: CodeBlockState
+    
+    init(language: String, code: String) {
+        self.language = language
+        self.code = code
+        _state = StateObject(wrappedValue: CodeBlockState(language: language))
+    }
+    
+    private var allLanguages: [(key: String, name: String)] = [
+        ("cpp", "C++"),
+        ("c", "C"),
+        ("swift", "Swift"),
+        ("python", "Python"),
+        ("javascript", "JavaScript"),
+        ("typescript", "TypeScript"),
+        ("html", "HTML"),
+        ("css", "CSS"),
+        ("json", "JSON"),
+        ("rust", "Rust"),
+        ("go", "Go"),
+        ("sql", "SQL"),
+        ("bash", "Bash")
+    ]
+    
+    private func displayName(for key: String) -> String {
+        return allLanguages.first(where: { $0.key == key })?.name ?? (key.isEmpty ? "Code" : key.uppercased())
+    }
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                HStack(spacing: 5) {
-                    Circle().fill(Color.red.opacity(0.7)).frame(width: 8, height: 8)
-                    Circle().fill(Color.yellow.opacity(0.7)).frame(width: 8, height: 8)
-                    Circle().fill(Color.green.opacity(0.7)).frame(width: 8, height: 8)
-                    
-                    Text(language.isEmpty ? "code" : language.lowercased())
-                        .font(.system(size: 11, weight: .bold, design: .monospaced))
-                        .foregroundColor(.secondary)
-                        .padding(.leading, 6)
+        ZStack(alignment: .topTrailing) {
+            // Code Content Container
+            VStack(alignment: .leading, spacing: 0) {
+                if state.isWrapLines {
+                    Text(highlightedCode(code, language: state.currentLanguage))
+                        .font(.system(size: 13, weight: .regular, design: .monospaced))
+                        .lineSpacing(4)
+                        .padding(.top, 42)
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 14)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                } else {
+                    ScrollView(.horizontal, showsIndicators: true) {
+                        Text(highlightedCode(code, language: state.currentLanguage))
+                            .font(.system(size: 13, weight: .regular, design: .monospaced))
+                            .lineSpacing(4)
+                            .padding(.top, 42)
+                            .padding(.horizontal, 16)
+                            .padding(.bottom, 14)
+                    }
                 }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color(nsColor: .controlBackgroundColor).opacity(0.35))
+            .background(Color.black.opacity(0.3))
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(Color.white.opacity(0.1), lineWidth: 1)
+            )
+            
+            // Notion-Style Floating Controls Pod (Top Right)
+            HStack(spacing: 6) {
+                // Language Dropdown Selector
+                Menu {
+                    Text("Language").font(.caption2).foregroundColor(.secondary)
+                    Divider()
+                    ForEach(allLanguages, id: \.key) { item in
+                        Button(action: { state.currentLanguage = item.key }) {
+                            HStack {
+                                Text(item.name)
+                                if state.currentLanguage == item.key {
+                                    Image(systemName: "checkmark")
+                                }
+                            }
+                        }
+                    }
+                } label: {
+                    HStack(spacing: 4) {
+                        Text(displayName(for: state.currentLanguage))
+                            .font(.system(size: 11, weight: .medium, design: .monospaced))
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 9, weight: .bold))
+                    }
+                    .foregroundColor(.secondary)
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 3)
+                    .background(RoundedRectangle(cornerRadius: 6).fill(Color.primary.opacity(0.06)))
+                }
+                .menuStyle(.borderlessButton)
                 
-                Spacer()
+                Divider()
+                    .frame(height: 12)
+                    .opacity(0.3)
                 
+                // Copy Button
                 Button(action: {
                     NSPasteboard.general.clearContents()
                     NSPasteboard.general.setString(code, forType: .string)
@@ -719,43 +796,91 @@ struct MarkdownCodeBlockView: View {
                         state.isCopied = false
                     }
                 }) {
-                    HStack(spacing: 4) {
+                    HStack(spacing: 3) {
                         Image(systemName: state.isCopied ? "checkmark" : "doc.on.doc")
-                        Text(state.isCopied ? "Copied" : "Copy")
+                            .font(.system(size: 11))
+                        if state.isCopied {
+                            Text("Copied")
+                                .font(.system(size: 10, weight: .medium))
+                        }
                     }
-                    .font(.system(size: 10, weight: .semibold))
                     .foregroundColor(state.isCopied ? .green : .secondary)
+                    .padding(4)
                 }
                 .buttonStyle(.plain)
+                .help("Copy Code")
+                
+                // More Options Menu (...)
+                Menu {
+                    Button(action: { state.isWrapLines.toggle() }) {
+                        Label(state.isWrapLines ? "Disable Line Wrap" : "Enable Line Wrap", systemImage: "text.wrap")
+                    }
+                    Button(action: {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(code, forType: .string)
+                    }) {
+                        Label("Copy Raw Code", systemImage: "doc.on.clipboard")
+                    }
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundColor(.secondary)
+                        .padding(4)
+                }
+                .menuStyle(.borderlessButton)
+                .help("Options")
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .background(Color.primary.opacity(0.04))
-            
-            Divider()
-                .opacity(0.5)
-            
-            ScrollView(.horizontal, showsIndicators: false) {
-                Text(highlightedCode(code, language: language))
-                    .font(.system(size: 13, weight: .regular, design: .monospaced))
-                    .padding(12)
-            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(
+                Capsule()
+                    .fill(.ultraThinMaterial)
+                    .shadow(color: Color.black.opacity(0.2), radius: 6, x: 0, y: 2)
+                    .overlay(
+                        Capsule()
+                            .stroke(Color.white.opacity(0.12), lineWidth: 0.8)
+                    )
+            )
+            .padding(.top, 8)
+            .padding(.trailing, 10)
         }
-        .background(Color.primary.opacity(0.025))
-        .clipShape(RoundedRectangle(cornerRadius: 8))
-        .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(Color.primary.opacity(0.12), lineWidth: 1)
-        )
-        .padding(.vertical, 4)
+        .padding(.vertical, 6)
     }
     
     private func highlightedCode(_ codeStr: String, language: String) -> AttributedString {
         var attr = AttributedString(codeStr)
         let lang = language.lowercased()
+        let nsString = codeStr as NSString
+        let fullRange = NSRange(location: 0, length: nsString.length)
         
+        // 1. Preprocessor directives e.g. #include, #define, #ifdef, #pragma (Cyan/Teal)
+        if ["cpp", "c", "arduino", "c++", "h"].contains(lang) || codeStr.contains("#include") {
+            if let regex = try? NSRegularExpression(pattern: "^\\s*(#include|#define|#ifndef|#endif|#pragma|#ifdef)\\b", options: .anchorsMatchLines) {
+                let matches = regex.matches(in: codeStr, range: fullRange)
+                for match in matches {
+                    if let range = Range(match.range, in: codeStr), let attrRange = Range(range, in: attr) {
+                        attr[attrRange].foregroundColor = Color.cyan
+                        attr[attrRange].inlinePresentationIntent = .stronglyEmphasized
+                    }
+                }
+            }
+            
+            // Highlight Included Headers e.g. <WiFi.h> or "header.h" (Yellow/Teal)
+            if let regex = try? NSRegularExpression(pattern: "<[^>]+>|\"[^\"]+\\.h\"") {
+                let matches = regex.matches(in: codeStr, range: fullRange)
+                for match in matches {
+                    if let range = Range(match.range, in: codeStr), let attrRange = Range(range, in: attr) {
+                        attr[attrRange].foregroundColor = Color.yellow
+                    }
+                }
+            }
+        }
+        
+        // 2. Language Keywords (Purple/Pink)
         let keywords: Set<String>
         switch lang {
+        case "cpp", "c++", "c", "arduino", "h":
+            keywords = ["const", "char", "int", "float", "double", "void", "bool", "struct", "class", "namespace", "using", "public", "private", "protected", "return", "if", "else", "for", "while", "do", "switch", "case", "break", "continue", "static", "unsigned", "signed", "typedef", "sizeof", "new", "delete", "true", "false", "NULL", "nullptr"]
         case "swift":
             keywords = ["func", "var", "let", "struct", "class", "enum", "import", "return", "if", "else", "for", "in", "while", "guard", "switch", "case", "public", "private", "final", "override", "self", "true", "false", "nil", "@State", "@Binding", "@ObservedObject", "@Published", "@MainActor", "some", "View"]
         case "python", "py":
@@ -767,16 +892,14 @@ struct MarkdownCodeBlockView: View {
         case "json":
             keywords = ["true", "false", "null"]
         default:
-            keywords = ["func", "def", "function", "var", "let", "const", "class", "struct", "import", "return", "if", "else", "true", "false"]
+            keywords = ["const", "func", "def", "function", "var", "let", "class", "struct", "import", "return", "if", "else", "true", "false"]
         }
         
         for word in keywords {
             if let regex = try? NSRegularExpression(pattern: "\\b\(NSRegularExpression.escapedPattern(for: word))\\b") {
-                let nsString = codeStr as NSString
-                let matches = regex.matches(in: codeStr, range: NSRange(location: 0, length: nsString.length))
+                let matches = regex.matches(in: codeStr, range: fullRange)
                 for match in matches {
-                    if let range = Range(match.range, in: codeStr),
-                       let attrRange = Range(range, in: attr) {
+                    if let range = Range(match.range, in: codeStr), let attrRange = Range(range, in: attr) {
                         attr[attrRange].foregroundColor = Color.purple
                         attr[attrRange].inlinePresentationIntent = .stronglyEmphasized
                     }
@@ -784,34 +907,31 @@ struct MarkdownCodeBlockView: View {
             }
         }
         
+        // 3. String Literals (Green)
         if let regex = try? NSRegularExpression(pattern: "\"([^\"]*)\"|'([^']*)'") {
-            let nsString = codeStr as NSString
-            let matches = regex.matches(in: codeStr, range: NSRange(location: 0, length: nsString.length))
+            let matches = regex.matches(in: codeStr, range: fullRange)
             for match in matches {
-                if let range = Range(match.range, in: codeStr),
-                   let attrRange = Range(range, in: attr) {
+                if let range = Range(match.range, in: codeStr), let attrRange = Range(range, in: attr) {
                     attr[attrRange].foregroundColor = Color.green
                 }
             }
         }
         
+        // 4. Line Comments (Gray)
         if let regex = try? NSRegularExpression(pattern: "(//.*$|#.*$)", options: .anchorsMatchLines) {
-            let nsString = codeStr as NSString
-            let matches = regex.matches(in: codeStr, range: NSRange(location: 0, length: nsString.length))
+            let matches = regex.matches(in: codeStr, range: fullRange)
             for match in matches {
-                if let range = Range(match.range, in: codeStr),
-                   let attrRange = Range(range, in: attr) {
+                if let range = Range(match.range, in: codeStr), let attrRange = Range(range, in: attr) {
                     attr[attrRange].foregroundColor = Color.secondary
                 }
             }
         }
         
+        // 5. Numbers (Orange)
         if let regex = try? NSRegularExpression(pattern: "\\b[0-9]+\\b") {
-            let nsString = codeStr as NSString
-            let matches = regex.matches(in: codeStr, range: NSRange(location: 0, length: nsString.length))
+            let matches = regex.matches(in: codeStr, range: fullRange)
             for match in matches {
-                if let range = Range(match.range, in: codeStr),
-                   let attrRange = Range(range, in: attr) {
+                if let range = Range(match.range, in: codeStr), let attrRange = Range(range, in: attr) {
                     attr[attrRange].foregroundColor = Color.orange
                 }
             }
@@ -1036,22 +1156,16 @@ struct MarkdownPreview: View {
     }
 }
 
-// MARK: - Native AppKit NSTextView Wrapper with Right-Click Context Menu & Callbacks
+// MARK: - Native AppKit NSTextView Wrapper with Unified Action Triggers & Quote Protection
 
 struct MacEditorView: NSViewRepresentable {
     @Binding var text: String
+    var actionTrigger: Binding<EditorAction?>? = nil
     var isAutoCorrectEnabled: Bool = true
     var fontFamily: EditorFontFamily = .mono
     var onPasteImage: ((Data, String) -> Void)?
     var onDropImageFile: ((URL) -> Void)?
-    var onInsertTable: (() -> Void)?
     var onInsertImage: (() -> Void)?
-    var onInsertCodeBlock: (() -> Void)?
-    var onInsertBold: (() -> Void)?
-    var onInsertItalic: (() -> Void)?
-    var onInsertH1: (() -> Void)?
-    var onInsertH2: (() -> Void)?
-    var onInsertWikiLink: (() -> Void)?
     var onExportPDF: (() -> Void)?
     var onExportHTML: (() -> Void)?
     var onExportMD: (() -> Void)?
@@ -1065,10 +1179,11 @@ struct MacEditorView: NSViewRepresentable {
         }
         
         func textDidChange(_ notification: Notification) {
-            guard let textView = notification.object as? NSTextView else { return }
+            guard let textView = notification.object as? ImageNSTextView else { return }
             if parent.text != textView.string {
                 parent.text = textView.string
             }
+            textView.applyLiveSyntaxHighlighting()
         }
     }
     
@@ -1100,8 +1215,8 @@ struct MacEditorView: NSViewRepresentable {
         textView.isGrammarCheckingEnabled = isAutoCorrectEnabled
         textView.isAutomaticSpellingCorrectionEnabled = isAutoCorrectEnabled
         textView.isAutomaticTextReplacementEnabled = isAutoCorrectEnabled
-        textView.isAutomaticQuoteSubstitutionEnabled = true
-        textView.isAutomaticDashSubstitutionEnabled = true
+        textView.isAutomaticQuoteSubstitutionEnabled = false
+        textView.isAutomaticDashSubstitutionEnabled = false
         textView.font = fontFamily.nsFont
         textView.textColor = NSColor.textColor
         textView.drawsBackground = false
@@ -1128,26 +1243,48 @@ struct MacEditorView: NSViewRepresentable {
             textView.string = text
         }
         textView.font = fontFamily.nsFont
+        textView.applyLiveSyntaxHighlighting()
         configureTextViewCallbacks(textView)
+        
         if textView.isAutomaticSpellingCorrectionEnabled != isAutoCorrectEnabled {
             textView.isContinuousSpellCheckingEnabled = isAutoCorrectEnabled
             textView.isGrammarCheckingEnabled = isAutoCorrectEnabled
             textView.isAutomaticSpellingCorrectionEnabled = isAutoCorrectEnabled
             textView.isAutomaticTextReplacementEnabled = isAutoCorrectEnabled
         }
+        
+        if let action = actionTrigger?.wrappedValue {
+            DispatchQueue.main.async {
+                actionTrigger?.wrappedValue = nil
+            }
+            switch action {
+            case .insertH1:
+                textView.insertSnippetAtCursor("# ")
+            case .insertBold:
+                textView.insertSnippetAtCursor("**", suffix: "**")
+            case .insertItalic:
+                textView.insertSnippetAtCursor("*", suffix: "*")
+            case .insertInlineCode:
+                textView.insertSnippetAtCursor("`", suffix: "`")
+            case .insertCodeBlock:
+                textView.insertCodeBlockAtCursor()
+            case .insertChecklist:
+                textView.insertSnippetAtCursor("- [ ] ")
+            case .insertWikiLink:
+                textView.insertSnippetAtCursor("[[", suffix: "]]")
+            case .insertTable:
+                let snippet = "\n| Header 1 | Header 2 | Header 3 |\n| --- | --- | --- |\n| Item A | Details B | Status C |\n| Item D | Details E | Status F |\n"
+                textView.insertSnippetAtCursor(snippet)
+            case .insertImage:
+                onInsertImage?()
+            }
+        }
     }
     
     private func configureTextViewCallbacks(_ textView: ImageNSTextView) {
         textView.onPasteImage = onPasteImage
         textView.onDropImage = onDropImageFile
-        textView.onInsertTable = onInsertTable
         textView.onInsertImage = onInsertImage
-        textView.onInsertCodeBlock = onInsertCodeBlock
-        textView.onInsertBold = onInsertBold
-        textView.onInsertItalic = onInsertItalic
-        textView.onInsertH1 = onInsertH1
-        textView.onInsertH2 = onInsertH2
-        textView.onInsertWikiLink = onInsertWikiLink
         textView.onExportPDF = onExportPDF
         textView.onExportHTML = onExportHTML
         textView.onExportMD = onExportMD
@@ -1158,14 +1295,7 @@ struct MacEditorView: NSViewRepresentable {
 class ImageNSTextView: NSTextView {
     var onPasteImage: ((Data, String) -> Void)?
     var onDropImage: ((URL) -> Void)?
-    var onInsertTable: (() -> Void)?
     var onInsertImage: (() -> Void)?
-    var onInsertCodeBlock: (() -> Void)?
-    var onInsertBold: (() -> Void)?
-    var onInsertItalic: (() -> Void)?
-    var onInsertH1: (() -> Void)?
-    var onInsertH2: (() -> Void)?
-    var onInsertWikiLink: (() -> Void)?
     var onExportPDF: (() -> Void)?
     var onExportHTML: (() -> Void)?
     var onExportMD: (() -> Void)?
@@ -1178,17 +1308,17 @@ class ImageNSTextView: NSTextView {
         let formatItem = NSMenuItem(title: "Format Text", action: nil, keyEquivalent: "")
         let formatSub = NSMenu()
         formatSub.addItem(NSMenuItem(title: "Heading H1 (#)", action: #selector(ctxH1), keyEquivalent: ""))
-        formatSub.addItem(NSMenuItem(title: "Heading H2 (##)", action: #selector(ctxH2), keyEquivalent: ""))
         formatSub.addItem(NSMenuItem(title: "Bold (**text**)", action: #selector(ctxBold), keyEquivalent: ""))
         formatSub.addItem(NSMenuItem(title: "Italic (*text*)", action: #selector(ctxItalic), keyEquivalent: ""))
+        formatSub.addItem(NSMenuItem(title: "Inline Code (`code`)", action: #selector(ctxInlineCode), keyEquivalent: ""))
         formatItem.submenu = formatSub
         menu.addItem(formatItem)
         
         // Insert Section
         let insertItem = NSMenuItem(title: "Insert Element", action: nil, keyEquivalent: "")
         let insertSub = NSMenu()
-        insertSub.addItem(NSMenuItem(title: "Markdown Table", action: #selector(ctxTable), keyEquivalent: ""))
         insertSub.addItem(NSMenuItem(title: "Code Block (```)", action: #selector(ctxCodeBlock), keyEquivalent: ""))
+        insertSub.addItem(NSMenuItem(title: "Markdown Table", action: #selector(ctxTable), keyEquivalent: ""))
         insertSub.addItem(NSMenuItem(title: "Image File...", action: #selector(ctxImage), keyEquivalent: ""))
         insertSub.addItem(NSMenuItem(title: "WikiLink [[Note]]", action: #selector(ctxWikiLink), keyEquivalent: ""))
         insertItem.submenu = insertSub
@@ -1218,9 +1348,9 @@ class ImageNSTextView: NSTextView {
     }
     
     @objc private func ctxH1() { insertSnippetAtCursor("# ") }
-    @objc private func ctxH2() { insertSnippetAtCursor("## ") }
     @objc private func ctxBold() { insertSnippetAtCursor("**", suffix: "**") }
     @objc private func ctxItalic() { insertSnippetAtCursor("*", suffix: "*") }
+    @objc private func ctxInlineCode() { insertSnippetAtCursor("`", suffix: "`") }
     @objc private func ctxTable() {
         let snippet = "\n| Header 1 | Header 2 | Header 3 |\n| --- | --- | --- |\n| Item A | Details B | Status C |\n| Item D | Details E | Status F |\n"
         insertSnippetAtCursor(snippet)
@@ -1232,6 +1362,100 @@ class ImageNSTextView: NSTextView {
     @objc private func ctxExportHTML() { onExportHTML?() }
     @objc private func ctxExportMD() { onExportMD?() }
     @objc private func ctxExportTXT() { onExportTXT?() }
+    
+    public func applyLiveSyntaxHighlighting() {
+        guard let textStorage = textStorage else { return }
+        let str = textStorage.string
+        let nsString = str as NSString
+        let fullRange = NSRange(location: 0, length: nsString.length)
+        guard fullRange.length > 0 else { return }
+        
+        let selected = selectedRange()
+        
+        textStorage.beginEditing()
+        
+        // Reset Base Formatting
+        textStorage.addAttribute(.font, value: font ?? NSFont.systemFont(ofSize: 14), range: fullRange)
+        textStorage.addAttribute(.foregroundColor, value: NSColor.textColor, range: fullRange)
+        textStorage.removeAttribute(.backgroundColor, range: fullRange)
+        
+        // Match Code Blocks ```lang ... ```
+        if let codeBlockRegex = try? NSRegularExpression(pattern: "(?ms)^```[a-zA-Z0-9_+-]*\\n.*?^```$", options: []) {
+            let matches = codeBlockRegex.matches(in: str, range: fullRange)
+            for match in matches {
+                let blockRange = match.range
+                
+                // Dark Background Card
+                textStorage.addAttribute(.backgroundColor, value: NSColor(white: 0.12, alpha: 1.0), range: blockRange)
+                textStorage.addAttribute(.font, value: NSFont.monospacedSystemFont(ofSize: 13, weight: .regular), range: blockRange)
+                textStorage.addAttribute(.foregroundColor, value: NSColor(white: 0.85, alpha: 1.0), range: blockRange)
+                
+                let blockText = nsString.substring(with: blockRange)
+                
+                // Preprocessor Statements #include, #define
+                if let regex = try? NSRegularExpression(pattern: "^\\s*(#include|#define|#ifndef|#endif|#pragma|#ifdef)\\b", options: .anchorsMatchLines) {
+                    let pMatches = regex.matches(in: blockText, range: NSRange(location: 0, length: (blockText as NSString).length))
+                    for pMatch in pMatches {
+                        let subRange = NSRange(location: blockRange.location + pMatch.range.location, length: pMatch.range.length)
+                        textStorage.addAttribute(.foregroundColor, value: NSColor.systemTeal, range: subRange)
+                    }
+                }
+                
+                // Header includes <WiFi.h> or "header.h"
+                if let regex = try? NSRegularExpression(pattern: "<[^>]+>|\"[^\"]+\\.h\"") {
+                    let hMatches = regex.matches(in: blockText, range: NSRange(location: 0, length: (blockText as NSString).length))
+                    for hMatch in hMatches {
+                        let subRange = NSRange(location: blockRange.location + hMatch.range.location, length: hMatch.range.length)
+                        textStorage.addAttribute(.foregroundColor, value: NSColor.systemYellow, range: subRange)
+                    }
+                }
+                
+                // Keywords
+                let keywords = ["const", "char", "int", "float", "double", "void", "bool", "struct", "class", "namespace", "using", "public", "private", "protected", "return", "if", "else", "for", "while", "do", "switch", "case", "break", "continue", "static", "unsigned", "signed", "typedef", "sizeof", "new", "delete", "true", "false", "NULL", "nullptr", "func", "var", "let", "enum", "import", "guard", "def", "function"]
+                for word in keywords {
+                    if let regex = try? NSRegularExpression(pattern: "\\b\(NSRegularExpression.escapedPattern(for: word))\\b") {
+                        let kMatches = regex.matches(in: blockText, range: NSRange(location: 0, length: (blockText as NSString).length))
+                        for kMatch in kMatches {
+                            let subRange = NSRange(location: blockRange.location + kMatch.range.location, length: kMatch.range.length)
+                            textStorage.addAttribute(.foregroundColor, value: NSColor.systemPurple, range: subRange)
+                        }
+                    }
+                }
+                
+                // Strings
+                if let regex = try? NSRegularExpression(pattern: "\"([^\"]*)\"|'([^']*)'") {
+                    let sMatches = regex.matches(in: blockText, range: NSRange(location: 0, length: (blockText as NSString).length))
+                    for sMatch in sMatches {
+                        let subRange = NSRange(location: blockRange.location + sMatch.range.location, length: sMatch.range.length)
+                        textStorage.addAttribute(.foregroundColor, value: NSColor.systemGreen, range: subRange)
+                    }
+                }
+                
+                // Comments
+                if let regex = try? NSRegularExpression(pattern: "(//.*$|#.*$)", options: .anchorsMatchLines) {
+                    let cMatches = regex.matches(in: blockText, range: NSRange(location: 0, length: (blockText as NSString).length))
+                    for cMatch in cMatches {
+                        let subRange = NSRange(location: blockRange.location + cMatch.range.location, length: cMatch.range.length)
+                        textStorage.addAttribute(.foregroundColor, value: NSColor.secondaryLabelColor, range: subRange)
+                    }
+                }
+                
+                // Numbers
+                if let regex = try? NSRegularExpression(pattern: "\\b[0-9]+\\b") {
+                    let nMatches = regex.matches(in: blockText, range: NSRange(location: 0, length: (blockText as NSString).length))
+                    for nMatch in nMatches {
+                        let subRange = NSRange(location: blockRange.location + nMatch.range.location, length: nMatch.range.length)
+                        textStorage.addAttribute(.foregroundColor, value: NSColor.systemOrange, range: subRange)
+                    }
+                }
+            }
+        }
+        
+        textStorage.endEditing()
+        if selected.location != NSNotFound && selected.location <= nsString.length {
+            setSelectedRange(selected)
+        }
+    }
     
     public func insertSnippetAtCursor(_ prefix: String, suffix: String = "") {
         let range = selectedRange()
