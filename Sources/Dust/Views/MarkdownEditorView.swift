@@ -438,24 +438,65 @@ struct MarkdownEditorView: View {
         viewModel.content = newContent
     }
 
+    private func isCustomImageBanner(_ style: String) -> Bool {
+        return style.contains("/") || style.contains(".")
+    }
+
+    private func selectCustomBannerImage() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.image]
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        if panel.runModal() == .OK, let url = panel.url {
+            if let data = try? Data(contentsOf: url),
+               let relativePath = store.saveImageAsset(data: data, extension: url.pathExtension.lowercased()) {
+                updateFrontmatter(banner: relativePath, icon: nil)
+            }
+        }
+    }
+
     private var noteBannerHeader: some View {
         VStack(spacing: 0) {
             if let banner = note.bannerStyle {
                 ZStack(alignment: .bottomLeading) {
-                    Rectangle()
-                        .fill(gradient(for: banner))
-                        .frame(height: 110)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12)
-                                .stroke(Color.white.opacity(0.15), lineWidth: 1)
-                        )
+                    if isCustomImageBanner(banner) {
+                        let imageURL = store.resolveImagePath(banner)
+                        if let nsImage = NSImage(contentsOf: imageURL) {
+                            Image(nsImage: nsImage)
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                                .frame(height: 130)
+                                .frame(maxWidth: .infinity)
+                                .clipShape(RoundedRectangle(cornerRadius: 12))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .stroke(Color.white.opacity(0.15), lineWidth: 1)
+                                )
+                        } else {
+                            Rectangle()
+                                .fill(gradient(for: "obsidian"))
+                                .frame(height: 110)
+                                .clipShape(RoundedRectangle(cornerRadius: 12))
+                        }
+                    } else {
+                        Rectangle()
+                            .fill(gradient(for: banner))
+                            .frame(height: 110)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .stroke(Color.white.opacity(0.15), lineWidth: 1)
+                            )
+                    }
                     
                     HStack {
                         Spacer()
                         Menu {
-                            Text("Change Banner Style").font(.caption)
+                            Button("Upload Custom Image...") {
+                                selectCustomBannerImage()
+                            }
                             Divider()
+                            Text("Color Presets").font(.caption2)
                             ForEach(bannerPresets, id: \.id) { preset in
                                 Button(preset.name) {
                                     updateFrontmatter(banner: preset.id, icon: nil)
@@ -507,6 +548,10 @@ struct MarkdownEditorView: View {
                 HStack(spacing: 8) {
                     if note.bannerStyle == nil {
                         Menu {
+                            Button("Upload Custom Image...") {
+                                selectCustomBannerImage()
+                            }
+                            Divider()
                             ForEach(bannerPresets, id: \.id) { preset in
                                 Button("Banner: \(preset.name)") {
                                     updateFrontmatter(banner: preset.id, icon: nil)
