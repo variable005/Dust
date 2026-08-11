@@ -1,7 +1,7 @@
 import XCTest
-@testable import VeloxNotes
+@testable import Dust
 
-final class VeloxNotesTests: XCTestCase {
+final class DustTests: XCTestCase {
     func testNoteParsingTagsAndWikiLinks() {
         let content = """
         # My Project Notes
