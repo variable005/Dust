@@ -258,6 +258,11 @@ struct MarkdownEditorView: View {
                 }
                 .help("Insert Image File")
                 
+                Button(action: { insertTableTemplate() }) {
+                    Image(systemName: "tablecells")
+                }
+                .help("Insert Markdown Table")
+                
                 // Font Family Options Menu
                 Menu {
                     Text("Font Options").font(.caption)
@@ -349,6 +354,11 @@ struct MarkdownEditorView: View {
                 insertText("![Image](\(relativePath))\n")
             }
         }
+    }
+    
+    private func insertTableTemplate() {
+        let snippet = "\n| Header 1 | Header 2 | Header 3 |\n| --- | --- | --- |\n| Item A | Details B | Status C |\n| Item D | Details E | Status F |\n"
+        insertText(snippet)
     }
     
     // MARK: - Autocomplete Overlay Box
@@ -597,7 +607,68 @@ struct MarkdownEditorView: View {
     }
 }
 
-// MARK: - Markdown Preview with Typography Options
+// MARK: - Markdown Preview with Typography & Table Options
+
+enum MarkdownBlock {
+    case line(String)
+    case table(headers: [String], rows: [[String]])
+}
+
+struct MarkdownTableView: View {
+    let headers: [String]
+    let rows: [[String]]
+    var fontFamily: EditorFontFamily = .mono
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Header Row
+            HStack(spacing: 0) {
+                ForEach(Array(headers.enumerated()), id: \.offset) { idx, header in
+                    Text(header)
+                        .font(.system(size: 13, weight: .bold, design: fontFamily.swiftUIFontDesign))
+                        .foregroundColor(.primary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                    if idx < headers.count - 1 {
+                        Divider()
+                    }
+                }
+            }
+            .background(Color.primary.opacity(0.06))
+            
+            Divider()
+            
+            // Data Rows
+            ForEach(Array(rows.enumerated()), id: \.offset) { rowIdx, row in
+                HStack(spacing: 0) {
+                    ForEach(Array(row.enumerated()), id: \.offset) { colIdx, cell in
+                        Text(cell)
+                            .font(.system(size: 13, weight: .regular, design: fontFamily.swiftUIFontDesign))
+                            .foregroundColor(.primary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 7)
+                        if colIdx < row.count - 1 {
+                            Divider()
+                        }
+                    }
+                }
+                .background(rowIdx % 2 == 0 ? Color.clear : Color.primary.opacity(0.02))
+                if rowIdx < rows.count - 1 {
+                    Divider().opacity(0.5)
+                }
+            }
+        }
+        .background(RoundedRectangle(cornerRadius: 8).fill(Color.primary.opacity(0.02)))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(Color.primary.opacity(0.12), lineWidth: 1)
+        )
+        .padding(.vertical, 6)
+    }
+}
 
 struct MarkdownPreview: View {
     let content: String
@@ -613,11 +684,73 @@ struct MarkdownPreview: View {
         return text.trimmingCharacters(in: .whitespacesAndNewlines)
     }
     
+    private var blocks: [MarkdownBlock] {
+        let rawLines = cleanContent.components(separatedBy: .newlines)
+        var result: [MarkdownBlock] = []
+        var currentTableLines: [String] = []
+        
+        for line in rawLines {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if trimmed.hasPrefix("|") && trimmed.hasSuffix("|") && trimmed.count > 1 {
+                currentTableLines.append(trimmed)
+            } else {
+                if !currentTableLines.isEmpty {
+                    if let tableBlock = parseTableBlock(currentTableLines) {
+                        result.append(tableBlock)
+                    } else {
+                        for tLine in currentTableLines {
+                            result.append(.line(tLine))
+                        }
+                    }
+                    currentTableLines.removeAll()
+                }
+                result.append(.line(line))
+            }
+        }
+        
+        if !currentTableLines.isEmpty {
+            if let tableBlock = parseTableBlock(currentTableLines) {
+                result.append(tableBlock)
+            } else {
+                for tLine in currentTableLines {
+                    result.append(.line(tLine))
+                }
+            }
+        }
+        
+        return result
+    }
+    
+    private func parseTableBlock(_ lines: [String]) -> MarkdownBlock? {
+        guard lines.count >= 2 else { return nil }
+        let splitRows = lines.map { row -> [String] in
+            let components = row.split(separator: "|", omittingEmptySubsequences: false)
+            guard components.count >= 2 else { return [] }
+            return components.dropFirst().dropLast().map { $0.trimmingCharacters(in: .whitespaces) }
+        }
+        
+        guard !splitRows.isEmpty, !splitRows[0].isEmpty else { return nil }
+        let headers = splitRows[0]
+        
+        let isSeparator = splitRows[1].allSatisfy { cell in
+            cell.replacingOccurrences(of: "-", with: "").replacingOccurrences(of: ":", with: "").isEmpty
+        }
+        
+        guard isSeparator else { return nil }
+        
+        let dataRows = Array(splitRows.dropFirst(2))
+        return .table(headers: headers, rows: dataRows)
+    }
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            let lines = cleanContent.components(separatedBy: .newlines)
-            ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
-                parseLine(line)
+            ForEach(Array(blocks.enumerated()), id: \.offset) { _, block in
+                switch block {
+                case .line(let line):
+                    parseLine(line)
+                case .table(let headers, let rows):
+                    MarkdownTableView(headers: headers, rows: rows, fontFamily: fontFamily)
+                }
             }
         }
     }

@@ -99,10 +99,28 @@ public struct NoteExporter {
         }
         bodyHTML += "\(title)</h1>\n"
         
-        // Convert Markdown lines to HTML
-        let lines = note.bodyText.components(separatedBy: .newlines)
-        for line in lines {
+        // Convert Markdown lines & tables to HTML
+        let rawLines = note.bodyText.components(separatedBy: .newlines)
+        var idx = 0
+        while idx < rawLines.count {
+            let line = rawLines[idx]
             let trimmed = line.trimmingCharacters(in: .whitespaces)
+            
+            if trimmed.hasPrefix("|") && trimmed.hasSuffix("|") && trimmed.count > 1 {
+                var tableLines: [String] = []
+                while idx < rawLines.count {
+                    let tTrimmed = rawLines[idx].trimmingCharacters(in: .whitespaces)
+                    if tTrimmed.hasPrefix("|") && tTrimmed.hasSuffix("|") && tTrimmed.count > 1 {
+                        tableLines.append(tTrimmed)
+                        idx += 1
+                    } else {
+                        break
+                    }
+                }
+                bodyHTML += convertTableToHTML(tableLines)
+                continue
+            }
+            
             if trimmed.hasPrefix("# ") {
                 bodyHTML += "<h1>\(trimmed.dropFirst(2))</h1>\n"
             } else if trimmed.hasPrefix("## ") {
@@ -120,6 +138,7 @@ public struct NoteExporter {
             } else {
                 bodyHTML += "<p>\(trimmed)</p>\n"
             }
+            idx += 1
         }
         
         return """
@@ -137,6 +156,25 @@ public struct NoteExporter {
                     color: #1f2937;
                     background: #ffffff;
                     padding: 0 20px;
+                }
+                table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin: 20px 0;
+                    font-size: 14px;
+                }
+                th, td {
+                    border: 1px solid #e5e7eb;
+                    padding: 8px 12px;
+                    text-align: left;
+                }
+                th {
+                    background-color: #f3f4f6;
+                    font-weight: 600;
+                    color: #111827;
+                }
+                tr:nth-child(even) {
+                    background-color: #f9fafb;
                 }
                 .cover-banner {
                     width: 100%;
@@ -179,7 +217,33 @@ public struct NoteExporter {
         """
     }
     
-    // MARK: - Helpers
+    private static func convertTableToHTML(_ lines: [String]) -> String {
+        guard lines.count >= 2 else { return lines.map { "<p>\($0)</p>" }.joined(separator: "\n") }
+        let splitRows = lines.map { row -> [String] in
+            let components = row.split(separator: "|", omittingEmptySubsequences: false)
+            guard components.count >= 2 else { return [] }
+            return components.dropFirst().dropLast().map { $0.trimmingCharacters(in: .whitespaces) }
+        }
+        guard !splitRows.isEmpty, !splitRows[0].isEmpty else { return "" }
+        let headers = splitRows[0]
+        let dataRows = Array(splitRows.dropFirst(2))
+        
+        var html = "<table>\n<thead>\n<tr>\n"
+        for header in headers {
+            html += "<th>\(header)</th>\n"
+        }
+        html += "</tr>\n</thead>\n<tbody>\n"
+        
+        for row in dataRows {
+            html += "<tr>\n"
+            for cell in row {
+                html += "<td>\(cell)</td>\n"
+            }
+            html += "</tr>\n"
+        }
+        html += "</tbody>\n</table>\n"
+        return html
+    }
     
     private static func sanitizeFilename(_ name: String) -> String {
         let invalidCharacters = CharacterSet(charactersIn: "\\/:*?\"<>|")
