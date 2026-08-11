@@ -2,6 +2,53 @@ import SwiftUI
 import AppKit
 import UniformTypeIdentifiers
 
+public enum EditorFontFamily: String, CaseIterable, Identifiable {
+    case mono = "mono"
+    case sans = "sans"
+    case serif = "serif"
+    case rounded = "rounded"
+    
+    public var id: String { rawValue }
+    
+    public var displayName: String {
+        switch self {
+        case .mono: return "Monospace"
+        case .sans: return "Sans-Serif"
+        case .serif: return "Serif"
+        case .rounded: return "Rounded"
+        }
+    }
+    
+    public var nsFont: NSFont {
+        switch self {
+        case .mono:
+            return NSFont.monospacedSystemFont(ofSize: 14, weight: .regular)
+        case .sans:
+            return NSFont.systemFont(ofSize: 14, weight: .regular)
+        case .serif:
+            if let font = NSFont(name: "New York", size: 14) ?? NSFont(name: "Georgia", size: 14) {
+                return font
+            }
+            return NSFont.systemFont(ofSize: 14, weight: .regular)
+        case .rounded:
+            if let descriptor = NSFont.systemFont(ofSize: 14, weight: .regular).fontDescriptor.withDesign(.rounded),
+               let font = NSFont(descriptor: descriptor, size: 14) {
+                return font
+            }
+            return NSFont.systemFont(ofSize: 14, weight: .regular)
+        }
+    }
+    
+    public var swiftUIFontDesign: Font.Design {
+        switch self {
+        case .mono: return .monospaced
+        case .sans: return .default
+        case .serif: return .serif
+        case .rounded: return .rounded
+        }
+    }
+}
+
 final class EditorViewModel: ObservableObject {
     @Published var content: String = ""
     @Published var isPreviewMode: Bool = false
@@ -21,8 +68,13 @@ struct MarkdownEditorView: View {
     var onContentChange: (String) -> Void
     
     @AppStorage("isAutoCorrectEnabled") private var isAutoCorrectEnabled: Bool = true
+    @AppStorage("editorFontFamily") private var rawFontFamily: String = EditorFontFamily.mono.rawValue
     @StateObject private var viewModel = EditorViewModel()
     @FocusState private var isFocused: Bool
+    
+    private var fontFamily: EditorFontFamily {
+        EditorFontFamily(rawValue: rawFontFamily) ?? .mono
+    }
     
     // MARK: - Autocomplete Computation
     
@@ -64,7 +116,7 @@ struct MarkdownEditorView: View {
                         ScrollView {
                             VStack(alignment: .leading, spacing: 14) {
                                 noteBannerHeader
-                                MarkdownPreview(content: viewModel.content, store: store)
+                                MarkdownPreview(content: viewModel.content, store: store, fontFamily: fontFamily)
                             }
                             .padding(.horizontal, horizontalMargin)
                             .padding(.top, 20)
@@ -80,6 +132,7 @@ struct MarkdownEditorView: View {
                                 MacEditorView(
                                     text: $viewModel.content,
                                     isAutoCorrectEnabled: isAutoCorrectEnabled,
+                                    fontFamily: fontFamily,
                                     onPasteImage: { data, ext in
                                         if let relativePath = store.saveImageAsset(data: data, extension: ext) {
                                             insertText("![Image](\(relativePath))\n")
@@ -155,7 +208,7 @@ struct MarkdownEditorView: View {
             Divider()
                 .frame(height: 14)
             
-            // Formatting & Image Tools
+            // Formatting, Image & Font Tools
             HStack(spacing: 10) {
                 Button(action: { insertText("# ") }) {
                     Image(systemName: "number")
@@ -191,6 +244,26 @@ struct MarkdownEditorView: View {
                     Image(systemName: "photo")
                 }
                 .help("Insert Image File")
+                
+                // Font Family Options Menu
+                Menu {
+                    Text("Font Options").font(.caption)
+                    Divider()
+                    ForEach(EditorFontFamily.allCases) { family in
+                        Button(action: { rawFontFamily = family.rawValue }) {
+                            HStack {
+                                Text(family.displayName)
+                                if fontFamily == family {
+                                    Image(systemName: "checkmark")
+                                }
+                            }
+                        }
+                    }
+                } label: {
+                    Image(systemName: "textformat")
+                }
+                .menuStyle(.borderlessButton)
+                .help("Font Options (Monospace, Sans-Serif, Serif, Rounded)")
             }
             .buttonStyle(.plain)
             .font(.system(size: 12, weight: .medium))
@@ -471,11 +544,12 @@ struct MarkdownEditorView: View {
     }
 }
 
-// MARK: - Markdown Preview with Inline Image Support
+// MARK: - Markdown Preview with Typography Options
 
 struct MarkdownPreview: View {
     let content: String
     @ObservedObject var store: NoteStore
+    var fontFamily: EditorFontFamily = .mono
     
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -505,7 +579,7 @@ struct MarkdownPreview: View {
                         )
                     if !alt.isEmpty {
                         Text(alt)
-                            .font(.caption)
+                            .font(.system(size: 11, design: fontFamily.swiftUIFontDesign))
                             .foregroundColor(.secondary)
                     }
                 }
@@ -515,7 +589,7 @@ struct MarkdownPreview: View {
                     Image(systemName: "photo.badge.exclamationmark")
                         .foregroundColor(.orange)
                     Text("Image not found: \(imagePath)")
-                        .font(.caption)
+                        .font(.system(size: 11, design: fontFamily.swiftUIFontDesign))
                         .foregroundColor(.secondary)
                 }
                 .padding(8)
@@ -523,17 +597,17 @@ struct MarkdownPreview: View {
             }
         } else if trimmed.hasPrefix("# ") {
             Text(trimmed.dropFirst(2))
-                .font(.system(size: 26, weight: .bold))
+                .font(.system(size: 26, weight: .bold, design: fontFamily.swiftUIFontDesign))
                 .foregroundColor(.primary)
                 .padding(.top, 4)
         } else if trimmed.hasPrefix("## ") {
             Text(trimmed.dropFirst(3))
-                .font(.system(size: 20, weight: .semibold))
+                .font(.system(size: 20, weight: .semibold, design: fontFamily.swiftUIFontDesign))
                 .foregroundColor(.primary)
                 .padding(.top, 4)
         } else if trimmed.hasPrefix("### ") {
             Text(trimmed.dropFirst(4))
-                .font(.system(size: 16, weight: .semibold))
+                .font(.system(size: 16, weight: .semibold, design: fontFamily.swiftUIFontDesign))
                 .foregroundColor(.primary)
                 .padding(.top, 2)
         } else if trimmed.hasPrefix("- [ ] ") {
@@ -541,14 +615,14 @@ struct MarkdownPreview: View {
                 Image(systemName: "square")
                     .foregroundColor(.secondary)
                 Text(trimmed.dropFirst(6))
-                    .font(.system(size: 14))
+                    .font(.system(size: 14, design: fontFamily.swiftUIFontDesign))
             }
         } else if trimmed.hasPrefix("- [x] ") || trimmed.hasPrefix("- [X] ") {
             HStack(spacing: 8) {
                 Image(systemName: "checkmark.square.fill")
                     .foregroundColor(.blue)
                 Text(trimmed.dropFirst(6))
-                    .font(.system(size: 14))
+                    .font(.system(size: 14, design: fontFamily.swiftUIFontDesign))
                     .strikethrough()
                     .foregroundColor(.secondary)
             }
@@ -556,7 +630,7 @@ struct MarkdownPreview: View {
             HStack(alignment: .top, spacing: 8) {
                 Text("•").font(.body).bold().foregroundColor(.blue)
                 Text(trimmed.dropFirst(2))
-                    .font(.system(size: 14))
+                    .font(.system(size: 14, design: fontFamily.swiftUIFontDesign))
             }
         } else if trimmed.hasPrefix("```") {
             Divider()
@@ -564,7 +638,7 @@ struct MarkdownPreview: View {
             Spacer().frame(height: 4)
         } else {
             Text(formattedMarkdown(trimmed))
-                .font(.system(size: 14))
+                .font(.system(size: 14, design: fontFamily.swiftUIFontDesign))
                 .lineSpacing(5)
         }
     }
@@ -586,11 +660,12 @@ struct MarkdownPreview: View {
     }
 }
 
-// MARK: - Native AppKit NSTextView Wrapper with Image Copy/Paste & Drag-and-Drop
+// MARK: - Native AppKit NSTextView Wrapper with Typography Options
 
 struct MacEditorView: NSViewRepresentable {
     @Binding var text: String
     var isAutoCorrectEnabled: Bool = true
+    var fontFamily: EditorFontFamily = .mono
     var onPasteImage: ((Data, String) -> Void)?
     var onDropImageFile: ((URL) -> Void)?
     
@@ -639,7 +714,7 @@ struct MacEditorView: NSViewRepresentable {
         textView.isAutomaticTextReplacementEnabled = isAutoCorrectEnabled
         textView.isAutomaticQuoteSubstitutionEnabled = true
         textView.isAutomaticDashSubstitutionEnabled = true
-        textView.font = NSFont.monospacedSystemFont(ofSize: 14, weight: .regular)
+        textView.font = fontFamily.nsFont
         textView.textColor = NSColor.textColor
         textView.drawsBackground = false
         
@@ -665,6 +740,7 @@ struct MacEditorView: NSViewRepresentable {
         if textView.string != text {
             textView.string = text
         }
+        textView.font = fontFamily.nsFont
         textView.onPasteImage = onPasteImage
         textView.onDropImage = onDropImageFile
         if textView.isAutomaticSpellingCorrectionEnabled != isAutoCorrectEnabled {

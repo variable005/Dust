@@ -13,6 +13,11 @@ struct FullScreenFocusView: View {
     
     @StateObject private var focusState = FocusViewState()
     @AppStorage("isAutoCorrectEnabled") private var isAutoCorrectEnabled: Bool = true
+    @AppStorage("editorFontFamily") private var rawFontFamily: String = EditorFontFamily.mono.rawValue
+    
+    private var fontFamily: EditorFontFamily {
+        EditorFontFamily(rawValue: rawFontFamily) ?? .mono
+    }
     
     var wordCount: Int {
         let components = focusState.content.components(separatedBy: .whitespacesAndNewlines)
@@ -117,7 +122,7 @@ struct FullScreenFocusView: View {
                     if focusState.isPreviewMode {
                         ScrollView {
                             VStack(alignment: .leading, spacing: 16) {
-                                MarkdownPreview(content: focusState.content, store: store)
+                                MarkdownPreview(content: focusState.content, store: store, fontFamily: fontFamily)
                             }
                             .padding(.horizontal, 40)
                             .padding(.top, 30)
@@ -131,6 +136,7 @@ struct FullScreenFocusView: View {
                             MacEditorView(
                                 text: $focusState.content,
                                 isAutoCorrectEnabled: isAutoCorrectEnabled,
+                                fontFamily: fontFamily,
                                 onPasteImage: { data, ext in
                                     if let relativePath = store.saveImageAsset(data: data, extension: ext) {
                                         focusState.content += "\n![Image](\(relativePath))\n"
