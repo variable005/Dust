@@ -1,7 +1,7 @@
 import SwiftUI
 
 final class MainViewState: ObservableObject {
-    @Published var isInspectorPresented: Bool = true
+    @Published var isInspectorPresented: Bool = false
     @Published var isGraphViewPresented: Bool = false
     @Published var isQuickNoteHUDPresented: Bool = false
     @Published var isFocusMode: Bool = false

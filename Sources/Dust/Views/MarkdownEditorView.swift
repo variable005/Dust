@@ -133,8 +133,9 @@ struct MarkdownEditorView: View {
                 Image(systemName: "pencil").tag(false)
                 Image(systemName: "eye").tag(true)
             }
+            .labelsHidden()
             .pickerStyle(.segmented)
-            .frame(width: 80)
+            .frame(width: 70)
             
             Divider()
                 .frame(height: 14)

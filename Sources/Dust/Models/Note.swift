@@ -54,9 +54,15 @@ public struct Note: Identifiable, Hashable, Codable, Sendable {
         return parent == "." ? "" : parent
     }
     
-    /// Clean snippet preview without Markdown symbols
+    /// Clean snippet preview without Frontmatter metadata or Markdown symbols
     public var snippet: String {
-        let lines = content.components(separatedBy: .newlines)
+        var cleanContent = content
+        if let regex = try? NSRegularExpression(pattern: "(?s)^---.*?---", options: []) {
+            let nsRange = NSRange(location: 0, length: (cleanContent as NSString).length)
+            cleanContent = regex.stringByReplacingMatches(in: cleanContent, options: [], range: nsRange, withTemplate: "")
+        }
+        
+        let lines = cleanContent.components(separatedBy: .newlines)
             .map { line -> String in
                 var l = line.trimmingCharacters(in: .whitespaces)
                 if l.hasPrefix("#") { l = l.replacingOccurrences(of: "^#+\\s*", with: "", options: .regularExpression) }
@@ -65,8 +71,7 @@ public struct Note: Identifiable, Hashable, Codable, Sendable {
             }
             .filter { !$0.isEmpty }
         
-        // Skip title line if it matched H1
-        let bodyLines = lines.dropFirst(content.hasPrefix("# ") ? 1 : 0)
+        let bodyLines = lines.dropFirst(cleanContent.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("# ") ? 1 : 0)
         return bodyLines.joined(separator: " ").trimmingCharacters(in: .whitespaces)
     }
     
