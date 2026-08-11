@@ -117,7 +117,7 @@ struct FullScreenFocusView: View {
                     if focusState.isPreviewMode {
                         ScrollView {
                             VStack(alignment: .leading, spacing: 16) {
-                                MarkdownPreview(content: focusState.content)
+                                MarkdownPreview(content: focusState.content, store: store)
                             }
                             .padding(.horizontal, 40)
                             .padding(.top, 30)
@@ -128,11 +128,25 @@ struct FullScreenFocusView: View {
                     } else {
                         HStack {
                             Spacer(minLength: 0)
-                            MacEditorView(text: $focusState.content, isAutoCorrectEnabled: isAutoCorrectEnabled)
-                                .padding(.horizontal, 40)
-                                .padding(.top, 24)
-                                .padding(.bottom, 100)
-                                .frame(maxWidth: 880)
+                            MacEditorView(
+                                text: $focusState.content,
+                                isAutoCorrectEnabled: isAutoCorrectEnabled,
+                                onPasteImage: { data, ext in
+                                    if let relativePath = store.saveImageAsset(data: data, extension: ext) {
+                                        focusState.content += "\n![Image](\(relativePath))\n"
+                                    }
+                                },
+                                onDropImageFile: { url in
+                                    if let data = try? Data(contentsOf: url),
+                                       let relativePath = store.saveImageAsset(data: data, extension: url.pathExtension.lowercased()) {
+                                        focusState.content += "\n![Image](\(relativePath))\n"
+                                    }
+                                }
+                            )
+                            .padding(.horizontal, 40)
+                            .padding(.top, 24)
+                            .padding(.bottom, 100)
+                            .frame(maxWidth: 880)
                             Spacer(minLength: 0)
                         }
                     }

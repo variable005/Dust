@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import UniformTypeIdentifiers
 
 final class EditorViewModel: ObservableObject {
     @Published var content: String = ""
@@ -63,7 +64,7 @@ struct MarkdownEditorView: View {
                         ScrollView {
                             VStack(alignment: .leading, spacing: 14) {
                                 noteBannerHeader
-                                MarkdownPreview(content: viewModel.content)
+                                MarkdownPreview(content: viewModel.content, store: store)
                             }
                             .padding(.horizontal, horizontalMargin)
                             .padding(.top, 20)
@@ -76,11 +77,25 @@ struct MarkdownEditorView: View {
                             noteBannerHeader
                             HStack {
                                 Spacer(minLength: 0)
-                                MacEditorView(text: $viewModel.content, isAutoCorrectEnabled: isAutoCorrectEnabled)
-                                    .padding(.horizontal, horizontalMargin)
-                                    .padding(.top, 16)
-                                    .padding(.bottom, 90)
-                                    .frame(maxWidth: 820)
+                                MacEditorView(
+                                    text: $viewModel.content,
+                                    isAutoCorrectEnabled: isAutoCorrectEnabled,
+                                    onPasteImage: { data, ext in
+                                        if let relativePath = store.saveImageAsset(data: data, extension: ext) {
+                                            insertText("![Image](\(relativePath))\n")
+                                        }
+                                    },
+                                    onDropImageFile: { url in
+                                        if let data = try? Data(contentsOf: url),
+                                           let relativePath = store.saveImageAsset(data: data, extension: url.pathExtension.lowercased()) {
+                                            insertText("![Image](\(relativePath))\n")
+                                        }
+                                    }
+                                )
+                                .padding(.horizontal, horizontalMargin)
+                                .padding(.top, 16)
+                                .padding(.bottom, 90)
+                                .frame(maxWidth: 820)
                                 Spacer(minLength: 0)
                             }
                         }
@@ -103,7 +118,7 @@ struct MarkdownEditorView: View {
                         }
                     }
                     
-                    // Floating Liquid Glass Ornaments Bar (Minimalist Floating Pod)
+                    // Floating Liquid Glass Ornaments Bar
                     floatingOrnamentsBar(isCompact: isCompact)
                 }
                 .padding(.bottom, 16)
@@ -140,7 +155,7 @@ struct MarkdownEditorView: View {
             Divider()
                 .frame(height: 14)
             
-            // Formatting Tools
+            // Formatting & Image Tools
             HStack(spacing: 10) {
                 Button(action: { insertText("# ") }) {
                     Image(systemName: "number")
@@ -171,6 +186,11 @@ struct MarkdownEditorView: View {
                     Image(systemName: "link")
                 }
                 .help("Insert WikiLink [[Note Title]]")
+                
+                Button(action: { selectImageFile() }) {
+                    Image(systemName: "photo")
+                }
+                .help("Insert Image File")
             }
             .buttonStyle(.plain)
             .font(.system(size: 12, weight: .medium))
@@ -208,6 +228,19 @@ struct MarkdownEditorView: View {
                 )
         )
         .animation(.easeInOut(duration: 0.2), value: isCompact)
+    }
+    
+    private func selectImageFile() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.image]
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        if panel.runModal() == .OK, let url = panel.url {
+            if let data = try? Data(contentsOf: url),
+               let relativePath = store.saveImageAsset(data: data, extension: url.pathExtension.lowercased()) {
+                insertText("![Image](\(relativePath))\n")
+            }
+        }
     }
     
     // MARK: - Autocomplete Overlay Box
@@ -251,13 +284,12 @@ struct MarkdownEditorView: View {
                 .padding(.horizontal, 6)
                 .padding(.bottom, 6)
             }
-            .frame(maxHeight: 140)
         }
-        .frame(width: 280)
+        .frame(maxWidth: 320, maxHeight: 180)
         .background(
             RoundedRectangle(cornerRadius: 12)
                 .fill(.regularMaterial)
-                .shadow(color: Color.black.opacity(0.22), radius: 12, x: 0, y: 4)
+                .shadow(color: Color.black.opacity(0.2), radius: 12, x: 0, y: 4)
                 .overlay(
                     RoundedRectangle(cornerRadius: 12)
                         .stroke(Color.primary.opacity(0.12), lineWidth: 1)
@@ -265,49 +297,68 @@ struct MarkdownEditorView: View {
         )
     }
     
-    // MARK: - Banner & Frontmatter Helpers
-    
-    private var bannerPresets: [(id: String, name: String, colors: [Color])] {
-        [
-            ("indigo", "Cosmic Indigo", [.indigo, .purple, .blue]),
-            ("sunset", "Sunset Flame", [.orange, .red, .purple]),
-            ("emerald", "Emerald Dawn", [.mint, .teal, .green]),
-            ("cyan", "Liquid Cyan", [.cyan, .blue, .indigo]),
-            ("obsidian", "Obsidian Dark", [.black, .gray.opacity(0.8), .black])
-        ]
+    private func insertText(_ text: String, suffix: String = "") {
+        if suffix.isEmpty {
+            viewModel.content += text
+        } else {
+            viewModel.content += "\(text)\(suffix)"
+        }
     }
     
-    private var emojiPresets: [String] {
-        ["🚀", "📝", "💡", "🎨", "⚡️", "🧠", "🔬", "📌", "✨", "🔥", "📂", "💻", "📚", "🎯", "🌐"]
+    // MARK: - Banner Header
+    
+    private var bannerPresets: [(id: String, name: String)] = [
+        ("indigo", "Indigo Night"),
+        ("sunset", "Sunset Glow"),
+        ("emerald", "Emerald Forest"),
+        ("cyan", "Cyan Neon"),
+        ("obsidian", "Obsidian Dark")
+    ]
+    
+    private var emojiPresets: [String] = ["📝", "🚀", "💡", "🎨", "⚡️", "🧠", "🔥", "📌", "🌐"]
+    
+    private func gradient(for style: String) -> LinearGradient {
+        switch style {
+        case "indigo": return LinearGradient(colors: [.indigo, .purple], startPoint: .topLeading, endPoint: .bottomTrailing)
+        case "sunset": return LinearGradient(colors: [.orange, .red], startPoint: .topLeading, endPoint: .bottomTrailing)
+        case "emerald": return LinearGradient(colors: [.teal, .green], startPoint: .topLeading, endPoint: .bottomTrailing)
+        case "cyan": return LinearGradient(colors: [.cyan, .blue], startPoint: .topLeading, endPoint: .bottomTrailing)
+        default: return LinearGradient(colors: [.gray.opacity(0.8), .black], startPoint: .topLeading, endPoint: .bottomTrailing)
+        }
     }
-
-    private func gradient(for style: String?) -> LinearGradient {
-        let preset = bannerPresets.first(where: { $0.id == style }) ?? bannerPresets[0]
-        return LinearGradient(colors: preset.colors, startPoint: .topLeading, endPoint: .bottomTrailing)
-    }
-
+    
     private func updateFrontmatter(banner: String?, icon: String?) {
-        var newContent = viewModel.content
+        var lines = viewModel.content.components(separatedBy: .newlines)
+        var hasFrontmatter = false
+        var frontmatterEndIndex = -1
+        
+        if lines.first == "---" {
+            hasFrontmatter = true
+            for (idx, line) in lines.enumerated().dropFirst() {
+                if line == "---" {
+                    frontmatterEndIndex = idx
+                    break
+                }
+            }
+        }
+        
         var currentBanner = note.bannerStyle
         var currentIcon = note.iconEmoji
         
         if let b = banner { currentBanner = b.isEmpty ? nil : b }
         if let i = icon { currentIcon = i.isEmpty ? nil : i }
         
-        // Remove existing frontmatter block if present
-        if newContent.hasPrefix("---") {
-            if let closingRange = newContent.range(of: "---", options: [], range: newContent.index(newContent.startIndex, offsetBy: 3)..<newContent.endIndex) {
-                newContent.removeSubrange(newContent.startIndex...closingRange.upperBound)
-                newContent = newContent.trimmingCharacters(in: .whitespacesAndNewlines)
-            }
+        var newFrontLines: [String] = []
+        if let b = currentBanner { newFrontLines.append("banner: \"\(b)\"") }
+        if let i = currentIcon { newFrontLines.append("icon: \"\(i)\"") }
+        
+        if hasFrontmatter && frontmatterEndIndex != -1 {
+            lines.removeSubrange(0...frontmatterEndIndex)
         }
         
-        // Build new YAML frontmatter block
-        if currentBanner != nil || currentIcon != nil {
-            var front = "---\n"
-            if let b = currentBanner { front += "banner: \"\(b)\"\n" }
-            if let i = currentIcon { front += "icon: \"\(i)\"\n" }
-            front += "---\n\n"
+        var newContent = lines.joined(separator: "\n")
+        if !newFrontLines.isEmpty {
+            let front = "---\n" + newFrontLines.joined(separator: "\n") + "\n---\n\n"
             newContent = front + newContent
         }
         
@@ -411,25 +462,20 @@ struct MarkdownEditorView: View {
                         .menuStyle(.borderlessButton)
                     }
                 }
-                .padding(.leading, note.iconEmoji == nil ? 16 : 0)
-                .padding(.top, note.bannerStyle != nil ? 6 : 10)
+                .padding(.top, note.bannerStyle != nil ? 8 : 12)
                 
                 Spacer()
             }
+            .padding(.horizontal, 16)
         }
-    }
-    
-    // MARK: - Text Insertion Helper
-    
-    private func insertText(_ prefix: String, suffix: String = "") {
-        viewModel.content += "\(prefix)\(suffix)"
     }
 }
 
-// MARK: - Styled Markdown Preview Component
+// MARK: - Markdown Preview with Inline Image Support
 
 struct MarkdownPreview: View {
     let content: String
+    @ObservedObject var store: NoteStore
     
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -444,7 +490,38 @@ struct MarkdownPreview: View {
     private func parseLine(_ line: String) -> some View {
         let trimmed = line.trimmingCharacters(in: .whitespaces)
         
-        if trimmed.hasPrefix("# ") {
+        if let (alt, imagePath) = extractImageMarkdown(trimmed) {
+            let fileURL = store.resolveImagePath(imagePath)
+            if let nsImage = NSImage(contentsOf: fileURL) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Image(nsImage: nsImage)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(maxHeight: 420)
+                        .cornerRadius(8)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(Color.primary.opacity(0.12), lineWidth: 1)
+                        )
+                    if !alt.isEmpty {
+                        Text(alt)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                .padding(.vertical, 4)
+            } else {
+                HStack(spacing: 6) {
+                    Image(systemName: "photo.badge.exclamationmark")
+                        .foregroundColor(.orange)
+                    Text("Image not found: \(imagePath)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                .padding(8)
+                .background(RoundedRectangle(cornerRadius: 6).fill(Color.orange.opacity(0.1)))
+            }
+        } else if trimmed.hasPrefix("# ") {
             Text(trimmed.dropFirst(2))
                 .font(.system(size: 26, weight: .bold))
                 .foregroundColor(.primary)
@@ -492,17 +569,30 @@ struct MarkdownPreview: View {
         }
     }
     
+    private func extractImageMarkdown(_ text: String) -> (alt: String, path: String)? {
+        let pattern = "^!\\[([^\\]]*)\\]\\(([^\\)]+)\\)$"
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return nil }
+        let nsString = text as NSString
+        let results = regex.matches(in: text, range: NSRange(location: 0, length: nsString.length))
+        guard let result = results.first, result.numberOfRanges > 2 else { return nil }
+        let alt = nsString.substring(with: result.range(at: 1))
+        let path = nsString.substring(with: result.range(at: 2))
+        return (alt, path)
+    }
+    
     private func formattedMarkdown(_ text: String) -> AttributedString {
         let options = AttributedString.MarkdownParsingOptions(interpretedSyntax: .inlineOnlyPreservingWhitespace)
         return (try? AttributedString(markdown: text, options: options)) ?? AttributedString(text)
     }
 }
 
-// MARK: - Native AppKit NSTextView Wrapper for Reliable Keyboard Focus
+// MARK: - Native AppKit NSTextView Wrapper with Image Copy/Paste & Drag-and-Drop
 
 struct MacEditorView: NSViewRepresentable {
     @Binding var text: String
     var isAutoCorrectEnabled: Bool = true
+    var onPasteImage: ((Data, String) -> Void)?
+    var onDropImageFile: ((URL) -> Void)?
     
     class Coordinator: NSObject, NSTextViewDelegate {
         var parent: MacEditorView
@@ -524,9 +614,18 @@ struct MacEditorView: NSViewRepresentable {
     }
     
     func makeNSView(context: Context) -> NSScrollView {
-        let scrollView = NSTextView.scrollableTextView()
-        guard let textView = scrollView.documentView as? NSTextView else {
-            return scrollView
+        let scrollView = NSScrollView()
+        let contentSize = scrollView.contentSize
+        
+        let textView = ImageNSTextView(frame: NSRect(x: 0, y: 0, width: contentSize.width, height: contentSize.height))
+        textView.minSize = NSSize(width: 0, height: contentSize.height)
+        textView.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
+        textView.isVerticallyResizable = true
+        textView.isHorizontallyResizable = false
+        textView.autoresizingMask = [.width]
+        if let container = textView.textContainer {
+            container.containerSize = NSSize(width: contentSize.width, height: CGFloat.greatestFiniteMagnitude)
+            container.widthTracksTextView = true
         }
         
         textView.delegate = context.coordinator
@@ -544,6 +643,11 @@ struct MacEditorView: NSViewRepresentable {
         textView.textColor = NSColor.textColor
         textView.drawsBackground = false
         
+        textView.onPasteImage = onPasteImage
+        textView.onDropImage = onDropImageFile
+        textView.registerForDraggedTypes([.fileURL, .png, .tiff])
+        
+        scrollView.documentView = textView
         scrollView.drawsBackground = false
         scrollView.hasVerticalScroller = true
         scrollView.hasHorizontalScroller = false
@@ -557,10 +661,12 @@ struct MacEditorView: NSViewRepresentable {
     }
     
     func updateNSView(_ nsView: NSScrollView, context: Context) {
-        guard let textView = nsView.documentView as? NSTextView else { return }
+        guard let textView = nsView.documentView as? ImageNSTextView else { return }
         if textView.string != text {
             textView.string = text
         }
+        textView.onPasteImage = onPasteImage
+        textView.onDropImage = onDropImageFile
         if textView.isAutomaticSpellingCorrectionEnabled != isAutoCorrectEnabled {
             textView.isContinuousSpellCheckingEnabled = isAutoCorrectEnabled
             textView.isGrammarCheckingEnabled = isAutoCorrectEnabled
@@ -570,3 +676,57 @@ struct MacEditorView: NSViewRepresentable {
     }
 }
 
+class ImageNSTextView: NSTextView {
+    var onPasteImage: ((Data, String) -> Void)?
+    var onDropImage: ((URL) -> Void)?
+    
+    override func paste(_ sender: Any?) {
+        let pb = NSPasteboard.general
+        
+        if let data = pb.data(forType: .png) {
+            onPasteImage?(data, "png")
+            return
+        } else if let data = pb.data(forType: .tiff), let img = NSImage(data: data), let pngData = img.pngData {
+            onPasteImage?(pngData, "png")
+            return
+        }
+        
+        if let urls = pb.readObjects(forClasses: [NSURL.self], options: nil) as? [URL] {
+            if let imageURL = urls.first(where: { ["png", "jpg", "jpeg", "gif", "webp"].contains($0.pathExtension.lowercased()) }) {
+                if let data = try? Data(contentsOf: imageURL) {
+                    onPasteImage?(data, imageURL.pathExtension.lowercased())
+                    return
+                }
+            }
+        }
+        
+        super.paste(sender)
+    }
+    
+    override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
+        let pb = sender.draggingPasteboard
+        if pb.canReadObject(forClasses: [NSURL.self], options: nil) {
+            return .copy
+        }
+        return super.draggingEntered(sender)
+    }
+    
+    override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        let pb = sender.draggingPasteboard
+        if let urls = pb.readObjects(forClasses: [NSURL.self], options: nil) as? [URL] {
+            if let imageURL = urls.first(where: { ["png", "jpg", "jpeg", "gif", "webp"].contains($0.pathExtension.lowercased()) }) {
+                onDropImage?(imageURL)
+                return true
+            }
+        }
+        return super.performDragOperation(sender)
+    }
+}
+
+extension NSImage {
+    var pngData: Data? {
+        guard let tiffData = tiffRepresentation,
+              let bitmapImage = NSBitmapImageRep(data: tiffData) else { return nil }
+        return bitmapImage.representation(using: .png, properties: [:])
+    }
+}

@@ -67,6 +67,40 @@ public final class NoteStore: ObservableObject {
             try? fm.createDirectory(at: rootFolderURL, withIntermediateDirectories: true)
             seedDefaultWelcomeNotes()
         }
+        ensureAssetsFolderExists()
+    }
+    
+    // MARK: - Asset & Image Management
+    
+    public var assetsFolderURL: URL {
+        rootFolderURL.appendingPathComponent("assets", isDirectory: true)
+    }
+    
+    public func ensureAssetsFolderExists() {
+        let fm = FileManager.default
+        if !fm.fileExists(atPath: assetsFolderURL.path) {
+            try? fm.createDirectory(at: assetsFolderURL, withIntermediateDirectories: true)
+        }
+    }
+    
+    public func saveImageAsset(data: Data, extension ext: String = "png") -> String? {
+        ensureAssetsFolderExists()
+        let filename = "img_\(UUID().uuidString.prefix(8)).\(ext)"
+        let fileURL = assetsFolderURL.appendingPathComponent(filename)
+        do {
+            try data.write(to: fileURL)
+            return "assets/\(filename)"
+        } catch {
+            print("Failed to save image asset: \(error)")
+            return nil
+        }
+    }
+    
+    public func resolveImagePath(_ relativePath: String) -> URL {
+        if relativePath.hasPrefix("/") || relativePath.hasPrefix("file://") || relativePath.hasPrefix("http") {
+            return URL(string: relativePath) ?? URL(fileURLWithPath: relativePath)
+        }
+        return rootFolderURL.appendingPathComponent(relativePath)
     }
     
     private func seedDefaultWelcomeNotes() {
