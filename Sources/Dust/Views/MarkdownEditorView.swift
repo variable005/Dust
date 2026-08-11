@@ -277,6 +277,28 @@ struct MarkdownEditorView: View {
                 }
                 .menuStyle(.borderlessButton)
                 .help("Font Options (Monospace, Sans-Serif, Serif, Rounded)")
+                
+                // Export Note Options Menu
+                Menu {
+                    Text("Export Note").font(.caption)
+                    Divider()
+                    Button(action: { NoteExporter.exportToPDF(note: note, store: store) }) {
+                        Label("Export as PDF (.pdf)", systemImage: "doc.plaintext")
+                    }
+                    Button(action: { NoteExporter.exportToHTML(note: note, store: store) }) {
+                        Label("Export as HTML (.html)", systemImage: "globe")
+                    }
+                    Button(action: { NoteExporter.exportToMarkdown(note: note) }) {
+                        Label("Export as Markdown (.md)", systemImage: "doc.text")
+                    }
+                    Button(action: { NoteExporter.exportToPlainText(note: note) }) {
+                        Label("Export as Plain Text (.txt)", systemImage: "text.alignleft")
+                    }
+                } label: {
+                    Image(systemName: "square.and.arrow.up")
+                }
+                .menuStyle(.borderlessButton)
+                .help("Export Note (PDF, HTML, Markdown, Plain Text)")
             }
             .buttonStyle(.plain)
             .font(.system(size: 12, weight: .medium))

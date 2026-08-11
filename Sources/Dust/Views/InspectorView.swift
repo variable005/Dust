@@ -151,6 +151,43 @@ struct InspectorView: View {
                             statRow(label: "Modified", value: note.modifiedAt.formatted(date: .numeric, time: .omitted))
                         }
                     }
+                    
+                    Divider()
+                        .opacity(0.5)
+                    
+                    // Export Note Section
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("EXPORT NOTE")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundColor(.secondary)
+                            .tracking(0.8)
+                        
+                        HStack(spacing: 6) {
+                            Button("PDF") {
+                                NoteExporter.exportToPDF(note: note, store: store)
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.small)
+                            
+                            Button("HTML") {
+                                NoteExporter.exportToHTML(note: note, store: store)
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                            
+                            Button("Markdown") {
+                                NoteExporter.exportToMarkdown(note: note)
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                            
+                            Button("Text") {
+                                NoteExporter.exportToPlainText(note: note)
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                        }
+                    }
                 }
                 .padding(16)
             }
