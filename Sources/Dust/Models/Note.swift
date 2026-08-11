@@ -32,13 +32,20 @@ public struct Note: Identifiable, Hashable, Codable, Sendable {
     
     // MARK: - Derived Properties
     
-    /// File basename without extension (e.g., "ProjectPlan")
+    /// File basename without extension (e.g., "ProjectPlan") or H1 header title
     public var title: String {
         let name = (relativePath as NSString).lastPathComponent
         let rawName = (name as NSString).deletingPathExtension
         
+        var cleanContent = content
+        if let regex = try? NSRegularExpression(pattern: "(?s)^---.*?---", options: []) {
+            let nsRange = NSRange(location: 0, length: (cleanContent as NSString).length)
+            cleanContent = regex.stringByReplacingMatches(in: cleanContent, options: [], range: nsRange, withTemplate: "")
+        }
+        cleanContent = cleanContent.trimmingCharacters(in: .whitespacesAndNewlines)
+        
         // If content starts with a Markdown H1 header (`# My Title`), use that if present
-        if let firstLine = content.components(separatedBy: .newlines).first,
+        if let firstLine = cleanContent.components(separatedBy: .newlines).first,
            firstLine.hasPrefix("# ") {
             let headerTitle = firstLine.dropFirst(2).trimmingCharacters(in: .whitespaces)
             if !headerTitle.isEmpty {

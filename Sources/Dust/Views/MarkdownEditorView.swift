@@ -596,9 +596,18 @@ struct MarkdownPreview: View {
     @ObservedObject var store: NoteStore
     var fontFamily: EditorFontFamily = .mono
     
+    private var cleanContent: String {
+        var text = content
+        if let regex = try? NSRegularExpression(pattern: "(?s)^---.*?---", options: []) {
+            let nsRange = NSRange(location: 0, length: (text as NSString).length)
+            text = regex.stringByReplacingMatches(in: text, options: [], range: nsRange, withTemplate: "")
+        }
+        return text.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            let lines = content.components(separatedBy: .newlines)
+            let lines = cleanContent.components(separatedBy: .newlines)
             ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
                 parseLine(line)
             }
