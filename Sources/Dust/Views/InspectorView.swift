@@ -6,106 +6,87 @@ struct InspectorView: View {
     
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
-                // MARK: - Header
+            VStack(alignment: .leading, spacing: 20) {
+                // Header Details
                 VStack(alignment: .leading, spacing: 4) {
                     Text(note.title)
-                        .font(.title3.bold())
+                        .font(.system(size: 16, weight: .bold))
                         .foregroundColor(.primary)
                     
-                    HStack(spacing: 4) {
-                        Image(systemName: "doc.plaintext.fill")
-                            .foregroundColor(.blue)
-                        Text(note.relativePath)
-                            .foregroundColor(.secondary)
-                    }
-                    .font(.caption)
+                    Text(note.relativePath)
+                        .font(.system(size: 11, weight: .regular, design: .monospaced))
+                        .foregroundColor(.secondary)
                 }
-                .padding(12)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(.thinMaterial)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12)
-                                .stroke(Color.primary.opacity(0.08), lineWidth: 1)
-                        )
-                )
                 
-                // MARK: - Incoming Backlinks
+                Divider()
+                    .opacity(0.5)
+                
+                // Backlinks Section
                 let incoming = store.backlinks(for: note.title)
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
-                        Label("Backlinks", systemImage: "link.badge.plus")
-                            .font(.system(size: 13, weight: .bold))
+                        Text("BACKLINKS")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundColor(.secondary)
+                            .tracking(0.8)
                         Spacer()
-                        Text("\(incoming.count)")
-                            .font(.caption2.bold())
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(Capsule().fill(Color.blue.opacity(0.15)))
-                            .foregroundColor(.blue)
+                        if !incoming.isEmpty {
+                            Text("\(incoming.count)")
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundColor(.secondary)
+                        }
                     }
                     
                     if incoming.isEmpty {
-                        Text("No other notes link to this note.")
+                        Text("No incoming links")
                             .font(.caption)
-                            .foregroundColor(.secondary)
-                            .padding(.vertical, 4)
+                            .foregroundColor(.secondary.opacity(0.7))
                     } else {
                         ForEach(incoming) { linkingNote in
                             Button(action: {
                                 store.selectedNoteId = linkingNote.id
                             }) {
-                                HStack {
-                                    Image(systemName: "doc.text.fill")
-                                        .foregroundColor(.blue)
+                                HStack(spacing: 6) {
+                                    Image(systemName: "link")
+                                        .font(.system(size: 11))
+                                        .foregroundColor(.accentColor)
                                     Text(linkingNote.title)
                                         .font(.system(size: 12, weight: .medium))
+                                        .foregroundColor(.primary)
                                     Spacer()
                                     Image(systemName: "chevron.right")
-                                        .font(.caption2)
-                                        .foregroundColor(.secondary)
+                                        .font(.system(size: 9))
+                                        .foregroundColor(.secondary.opacity(0.5))
                                 }
-                                .padding(8)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 8)
-                                        .fill(.ultraThinMaterial)
-                                )
+                                .padding(.vertical, 3)
                             }
                             .buttonStyle(.plain)
                         }
                     }
                 }
-                .padding(12)
-                .background(
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(.thinMaterial)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12)
-                                .stroke(Color.primary.opacity(0.08), lineWidth: 1)
-                        )
-                )
                 
-                // MARK: - Outgoing WikiLinks
+                Divider()
+                    .opacity(0.5)
+                
+                // Outgoing WikiLinks Section
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
-                        Label("Outgoing Links", systemImage: "arrow.up.right.square.fill")
-                            .font(.system(size: 13, weight: .bold))
+                        Text("OUTGOING LINKS")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundColor(.secondary)
+                            .tracking(0.8)
                         Spacer()
-                        Text("\(note.wikiLinks.count)")
-                            .font(.caption2.bold())
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(Capsule().fill(Color.purple.opacity(0.15)))
-                            .foregroundColor(.purple)
+                        if !note.wikiLinks.isEmpty {
+                            Text("\(note.wikiLinks.count)")
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundColor(.secondary)
+                        }
                     }
                     
                     if note.wikiLinks.isEmpty {
-                        Text("No [[WikiLinks]] in this note.")
+                        Text("No outgoing [[WikiLinks]]")
                             .font(.caption)
-                            .foregroundColor(.secondary)
-                            .padding(.vertical, 4)
+                            .foregroundColor(.secondary.opacity(0.7))
                     } else {
                         ForEach(Array(note.wikiLinks), id: \.self) { linkTarget in
                             let targetNote = store.notes.first { $0.title.lowercased() == linkTarget.lowercased() }
@@ -118,79 +99,55 @@ struct InspectorView: View {
                                     store.selectedNoteId = newNote.id
                                 }
                             }) {
-                                HStack {
-                                    Image(systemName: targetNote != nil ? "link" : "plus.circle.fill")
+                                HStack(spacing: 6) {
+                                    Image(systemName: targetNote != nil ? "arrow.up.right" : "plus")
+                                        .font(.system(size: 11, weight: .medium))
                                         .foregroundColor(targetNote != nil ? .purple : .green)
                                     Text(linkTarget)
                                         .font(.system(size: 12, weight: .medium))
+                                        .foregroundColor(.primary)
                                     Spacer()
-                                    Text(targetNote != nil ? "Open" : "Create")
-                                        .font(.caption2.bold())
-                                        .foregroundColor(targetNote != nil ? .purple : .green)
                                 }
-                                .padding(8)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 8)
-                                        .fill(.ultraThinMaterial)
-                                )
+                                .padding(.vertical, 3)
                             }
                             .buttonStyle(.plain)
                         }
                     }
                 }
-                .padding(12)
-                .background(
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(.thinMaterial)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12)
-                                .stroke(Color.primary.opacity(0.08), lineWidth: 1)
-                        )
-                )
                 
-                // MARK: - Document Statistics
+                Divider()
+                    .opacity(0.5)
+                
+                // Document Statistics
                 VStack(alignment: .leading, spacing: 10) {
-                    Label("Statistics", systemImage: "chart.bar.fill")
-                        .font(.system(size: 13, weight: .bold))
+                    Text("STATISTICS")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundColor(.secondary)
+                        .tracking(0.8)
                     
-                    Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 6) {
-                        GridRow {
-                            Text("Words:").foregroundColor(.secondary)
-                            Text("\(note.wordCount)").bold()
-                        }
-                        GridRow {
-                            Text("Characters:").foregroundColor(.secondary)
-                            Text("\(note.characterCount)").bold()
-                        }
-                        GridRow {
-                            Text("Reading Time:").foregroundColor(.secondary)
-                            Text("\(note.readingTimeMinutes) min").bold()
-                        }
-                        GridRow {
-                            Text("Created:").foregroundColor(.secondary)
-                            Text(note.createdAt.formatted(date: .numeric, time: .omitted))
-                        }
-                        GridRow {
-                            Text("Modified:").foregroundColor(.secondary)
-                            Text(note.modifiedAt.formatted(date: .numeric, time: .omitted))
-                        }
+                    VStack(spacing: 6) {
+                        statRow(label: "Words", value: "\(note.wordCount)")
+                        statRow(label: "Characters", value: "\(note.characterCount)")
+                        statRow(label: "Reading Time", value: "\(note.readingTimeMinutes) min")
+                        statRow(label: "Created", value: note.createdAt.formatted(date: .numeric, time: .omitted))
+                        statRow(label: "Modified", value: note.modifiedAt.formatted(date: .numeric, time: .omitted))
                     }
-                    .font(.caption)
                 }
-                .padding(12)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(.thinMaterial)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12)
-                                .stroke(Color.primary.opacity(0.08), lineWidth: 1)
-                        )
-                )
             }
-            .padding(14)
+            .padding(16)
         }
         .background(.ultraThinMaterial)
     }
+    
+    private func statRow(label: String, value: String) -> some View {
+        HStack {
+            Text(label)
+                .font(.system(size: 12))
+                .foregroundColor(.secondary)
+            Spacer()
+            Text(value)
+                .font(.system(size: 12, weight: .medium, design: .monospaced))
+                .foregroundColor(.primary)
+        }
+    }
 }
-

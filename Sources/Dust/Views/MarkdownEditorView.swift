@@ -54,44 +54,35 @@ struct MarkdownEditorView: View {
     var body: some View {
         GeometryReader { geometry in
             let isCompact = geometry.size.width < 500
-            let horizontalMargin = max(20, min(geometry.size.width * 0.08, 56))
+            let horizontalMargin = max(24, min(geometry.size.width * 0.1, 64))
             
             ZStack(alignment: .bottom) {
-                VStack(spacing: 0) {
-                    // Top Header / Editor Mode Switcher Bar
-                    editorToolbar(isCompact: isCompact)
-                    
-                    Divider()
-                    
-                    // Main Editor / Preview Canvas
-                    ZStack {
-                        if viewModel.isPreviewMode {
-                            ScrollView {
-                                VStack(alignment: .leading, spacing: 12) {
-                                    noteBannerHeader
-                                    MarkdownPreview(content: viewModel.content)
-                                }
-                                .padding(.horizontal, horizontalMargin)
-                                .padding(.top, 12)
-                                .padding(.bottom, 90)
-                                .frame(maxWidth: 800, alignment: .leading)
-                                .frame(maxWidth: .infinity, alignment: .center)
-                            }
-                            .background(.ultraThinMaterial)
-                        } else {
-                            VStack(spacing: 0) {
+                // Main Editor / Preview Canvas
+                ZStack {
+                    if viewModel.isPreviewMode {
+                        ScrollView {
+                            VStack(alignment: .leading, spacing: 14) {
                                 noteBannerHeader
-                                HStack {
-                                    Spacer(minLength: 0)
-                                    MacEditorView(text: $viewModel.content, isAutoCorrectEnabled: isAutoCorrectEnabled)
-                                        .padding(.horizontal, horizontalMargin)
-                                        .padding(.top, 12)
-                                        .padding(.bottom, 90)
-                                        .frame(maxWidth: 850)
-                                    Spacer(minLength: 0)
-                                }
+                                MarkdownPreview(content: viewModel.content)
                             }
-                            .background(.ultraThinMaterial)
+                            .padding(.horizontal, horizontalMargin)
+                            .padding(.top, 20)
+                            .padding(.bottom, 90)
+                            .frame(maxWidth: 780, alignment: .leading)
+                            .frame(maxWidth: .infinity, alignment: .center)
+                        }
+                    } else {
+                        VStack(spacing: 0) {
+                            noteBannerHeader
+                            HStack {
+                                Spacer(minLength: 0)
+                                MacEditorView(text: $viewModel.content, isAutoCorrectEnabled: isAutoCorrectEnabled)
+                                    .padding(.horizontal, horizontalMargin)
+                                    .padding(.top, 16)
+                                    .padding(.bottom, 90)
+                                    .frame(maxWidth: 820)
+                                Spacer(minLength: 0)
+                            }
                         }
                     }
                 }
@@ -112,7 +103,7 @@ struct MarkdownEditorView: View {
                         }
                     }
                     
-                    // Floating Liquid Glass Ornaments Bar (Apple Design Pattern)
+                    // Floating Liquid Glass Ornaments Bar (Minimalist Floating Pod)
                     floatingOrnamentsBar(isCompact: isCompact)
                 }
                 .padding(.bottom, 16)
@@ -133,60 +124,23 @@ struct MarkdownEditorView: View {
         }
     }
     
-    // MARK: - Top Mode Toolbar
-    
-    private func editorToolbar(isCompact: Bool) -> some View {
-        HStack(spacing: 12) {
-            Picker("View Mode", selection: $viewModel.isPreviewMode) {
-                if isCompact {
-                    Image(systemName: "pencil").tag(false)
-                    Image(systemName: "eye.fill").tag(true)
-                } else {
-                    Label("Edit", systemImage: "pencil").tag(false)
-                    Label("Preview", systemImage: "eye.fill").tag(true)
-                }
-            }
-            .pickerStyle(.segmented)
-            .fixedSize()
-            
-            Button(action: { isAutoCorrectEnabled.toggle() }) {
-                HStack(spacing: 4) {
-                    Image(systemName: isAutoCorrectEnabled ? "text.badge.checkmark" : "text.badge.xmark")
-                    if !isCompact {
-                        Text(isAutoCorrectEnabled ? "Auto-Correct On" : "Auto-Correct Off")
-                    }
-                }
-                .font(.system(size: 11, weight: .semibold))
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(
-                    Capsule()
-                        .fill(isAutoCorrectEnabled ? Color.accentColor.opacity(0.12) : Color.primary.opacity(0.06))
-                )
-                .foregroundColor(isAutoCorrectEnabled ? .accentColor : .secondary)
-            }
-            .buttonStyle(.plain)
-            .help(isAutoCorrectEnabled ? "Auto-Correct is Enabled" : "Auto-Correct is Disabled")
-            
-            Spacer(minLength: 12)
-            
-            Text(note.title)
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundColor(.primary)
-                .lineLimit(1)
-                .truncationMode(.tail)
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
-        .background(.ultraThinMaterial)
-    }
-    
-    // MARK: - Floating Liquid Glass Ornament Bar
+    // MARK: - Minimal Floating Liquid Glass Pod
     
     private func floatingOrnamentsBar(isCompact: Bool) -> some View {
-        HStack(spacing: 14) {
-            // Quick Formatting Tools
-            HStack(spacing: 8) {
+        HStack(spacing: 12) {
+            // Mode Switcher
+            Picker("View Mode", selection: $viewModel.isPreviewMode) {
+                Image(systemName: "pencil").tag(false)
+                Image(systemName: "eye").tag(true)
+            }
+            .pickerStyle(.segmented)
+            .frame(width: 80)
+            
+            Divider()
+                .frame(height: 14)
+            
+            // Formatting Tools
+            HStack(spacing: 10) {
                 Button(action: { insertText("# ") }) {
                     Image(systemName: "number")
                 }
@@ -218,32 +172,38 @@ struct MarkdownEditorView: View {
                 .help("Insert WikiLink [[Note Title]]")
             }
             .buttonStyle(.plain)
-            .font(.system(size: 13, weight: .medium))
-            .foregroundColor(.primary)
+            .font(.system(size: 12, weight: .medium))
+            .foregroundColor(.primary.opacity(0.85))
             
             if !isCompact {
                 Divider()
-                    .frame(height: 16)
+                    .frame(height: 14)
                 
-                // Dynamic Note Stats Pill
-                HStack(spacing: 8) {
-                    Label("\(note.wordCount) Words", systemImage: "text.alignleft")
-                    Text("•")
-                    Label("\(note.readingTimeMinutes)m read", systemImage: "clock")
+                // Note Stats & Auto-Correct Toggle
+                HStack(spacing: 10) {
+                    Text("\(note.wordCount)w")
+                        .font(.system(size: 11, weight: .medium, design: .monospaced))
+                        .foregroundColor(.secondary)
+                    
+                    Button(action: { isAutoCorrectEnabled.toggle() }) {
+                        Image(systemName: isAutoCorrectEnabled ? "text.badge.checkmark" : "text.badge.xmark")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundColor(isAutoCorrectEnabled ? .accentColor : .secondary.opacity(0.6))
+                    }
+                    .buttonStyle(.plain)
+                    .help(isAutoCorrectEnabled ? "Auto-Correct Enabled" : "Auto-Correct Disabled")
                 }
-                .font(.system(size: 11, weight: .medium))
-                .foregroundColor(.secondary)
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 7)
         .background(
             Capsule()
-                .fill(.regularMaterial)
-                .shadow(color: Color.black.opacity(0.18), radius: 12, x: 0, y: 4)
+                .fill(.ultraThinMaterial)
+                .shadow(color: Color.black.opacity(0.12), radius: 10, x: 0, y: 3)
                 .overlay(
                     Capsule()
-                        .stroke(Color.primary.opacity(0.12), lineWidth: 1)
+                        .stroke(Color.primary.opacity(0.08), lineWidth: 0.8)
                 )
         )
         .animation(.easeInOut(duration: 0.2), value: isCompact)
