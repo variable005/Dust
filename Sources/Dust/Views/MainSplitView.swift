@@ -29,10 +29,6 @@ struct MainSplitView: View {
                             store.updateNoteContent(id: selectedId, newContent: newContent)
                         }
                     )
-                    .inspector(isPresented: $mainState.isInspectorPresented) {
-                        InspectorView(note: store.notes[noteIndex], store: store)
-                            .inspectorColumnWidth(min: 240, ideal: 270, max: 320)
-                    }
                     .toolbar {
                         ToolbarItemGroup(placement: .primaryAction) {
                             Button(action: {
@@ -66,9 +62,12 @@ struct MainSplitView: View {
                             .help("Toggle Pin")
                             
                             Button(action: { mainState.isInspectorPresented.toggle() }) {
-                                Image(systemName: "sidebar.right")
+                                Image(systemName: "info.circle")
                             }
-                            .help("Toggle Inspector Panel")
+                            .help("Note Information & Backlinks")
+                            .popover(isPresented: $mainState.isInspectorPresented, arrowEdge: .top) {
+                                InspectorView(note: store.notes[noteIndex], store: store)
+                            }
                         }
                     }
                 } else {
