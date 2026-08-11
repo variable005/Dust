@@ -143,7 +143,19 @@ struct MarkdownEditorView: View {
                                            let relativePath = store.saveImageAsset(data: data, extension: url.pathExtension.lowercased()) {
                                             insertText("![Image](\(relativePath))\n")
                                         }
-                                    }
+                                    },
+                                    onInsertTable: { insertTableTemplate() },
+                                    onInsertImage: { selectImageFile() },
+                                    onInsertCodeBlock: { insertText("\n```swift\n// Code snippet\n```\n") },
+                                    onInsertBold: { insertText("**", suffix: "**") },
+                                    onInsertItalic: { insertText("*", suffix: "*") },
+                                    onInsertH1: { insertText("# ") },
+                                    onInsertH2: { insertText("## ") },
+                                    onInsertWikiLink: { insertText("[[", suffix: "]]") },
+                                    onExportPDF: { NoteExporter.exportToPDF(note: note, store: store) },
+                                    onExportHTML: { NoteExporter.exportToHTML(note: note, store: store) },
+                                    onExportMD: { NoteExporter.exportToMarkdown(note: note) },
+                                    onExportTXT: { NoteExporter.exportToPlainText(note: note) }
                                 )
                                 .padding(.horizontal, horizontalMargin)
                                 .padding(.top, 16)
@@ -241,7 +253,12 @@ struct MarkdownEditorView: View {
                 Button(action: { insertText("`", suffix: "`") }) {
                     Image(systemName: "code")
                 }
-                .help("Code Snippet")
+                .help("Inline Code")
+                
+                Button(action: { insertText("\n```swift\n// Code\n```\n") }) {
+                    Image(systemName: "chevron.left.forwardslash.chevron.right")
+                }
+                .help("Insert Code Block (```)")
                 
                 Button(action: { insertText("- [ ] ") }) {
                     Image(systemName: "checkmark.square")
@@ -607,11 +624,12 @@ struct MarkdownEditorView: View {
     }
 }
 
-// MARK: - Markdown Preview with Typography & Table Options
+// MARK: - Markdown Preview with Typography, Tables & Syntax Highlighting
 
 enum MarkdownBlock {
     case line(String)
     case table(headers: [String], rows: [[String]])
+    case codeBlock(language: String, code: String)
 }
 
 struct MarkdownTableView: View {
@@ -621,7 +639,6 @@ struct MarkdownTableView: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Header Row
             HStack(spacing: 0) {
                 ForEach(Array(headers.enumerated()), id: \.offset) { idx, header in
                     Text(header)
@@ -639,7 +656,6 @@ struct MarkdownTableView: View {
             
             Divider()
             
-            // Data Rows
             ForEach(Array(rows.enumerated()), id: \.offset) { rowIdx, row in
                 HStack(spacing: 0) {
                     ForEach(Array(row.enumerated()), id: \.offset) { colIdx, cell in
@@ -670,6 +686,141 @@ struct MarkdownTableView: View {
     }
 }
 
+final class CodeBlockState: ObservableObject {
+    @Published var isCopied: Bool = false
+}
+
+struct MarkdownCodeBlockView: View {
+    let language: String
+    let code: String
+    @StateObject private var state = CodeBlockState()
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                HStack(spacing: 5) {
+                    Circle().fill(Color.red.opacity(0.7)).frame(width: 8, height: 8)
+                    Circle().fill(Color.yellow.opacity(0.7)).frame(width: 8, height: 8)
+                    Circle().fill(Color.green.opacity(0.7)).frame(width: 8, height: 8)
+                    
+                    Text(language.isEmpty ? "code" : language.lowercased())
+                        .font(.system(size: 11, weight: .bold, design: .monospaced))
+                        .foregroundColor(.secondary)
+                        .padding(.leading, 6)
+                }
+                
+                Spacer()
+                
+                Button(action: {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(code, forType: .string)
+                    state.isCopied = true
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                        state.isCopied = false
+                    }
+                }) {
+                    HStack(spacing: 4) {
+                        Image(systemName: state.isCopied ? "checkmark" : "doc.on.doc")
+                        Text(state.isCopied ? "Copied" : "Copy")
+                    }
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundColor(state.isCopied ? .green : .secondary)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(Color.primary.opacity(0.04))
+            
+            Divider()
+                .opacity(0.5)
+            
+            ScrollView(.horizontal, showsIndicators: false) {
+                Text(highlightedCode(code, language: language))
+                    .font(.system(size: 13, weight: .regular, design: .monospaced))
+                    .padding(12)
+            }
+        }
+        .background(Color.primary.opacity(0.025))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(Color.primary.opacity(0.12), lineWidth: 1)
+        )
+        .padding(.vertical, 4)
+    }
+    
+    private func highlightedCode(_ codeStr: String, language: String) -> AttributedString {
+        var attr = AttributedString(codeStr)
+        let lang = language.lowercased()
+        
+        let keywords: Set<String>
+        switch lang {
+        case "swift":
+            keywords = ["func", "var", "let", "struct", "class", "enum", "import", "return", "if", "else", "for", "in", "while", "guard", "switch", "case", "public", "private", "final", "override", "self", "true", "false", "nil", "@State", "@Binding", "@ObservedObject", "@Published", "@MainActor", "some", "View"]
+        case "python", "py":
+            keywords = ["def", "class", "import", "from", "return", "if", "elif", "else", "for", "in", "while", "with", "as", "try", "except", "lambda", "True", "False", "None", "self", "async", "await", "and", "or", "not"]
+        case "javascript", "js", "typescript", "ts":
+            keywords = ["const", "let", "var", "function", "return", "if", "else", "for", "while", "switch", "case", "import", "export", "default", "class", "extends", "async", "await", "true", "false", "null", "undefined", "this", "new", "type", "interface"]
+        case "html", "xml", "css":
+            keywords = ["html", "head", "body", "div", "span", "p", "a", "h1", "h2", "h3", "table", "tr", "td", "th", "style", "script", "color", "background", "margin", "padding", "font-family", "display", "flex"]
+        case "json":
+            keywords = ["true", "false", "null"]
+        default:
+            keywords = ["func", "def", "function", "var", "let", "const", "class", "struct", "import", "return", "if", "else", "true", "false"]
+        }
+        
+        for word in keywords {
+            if let regex = try? NSRegularExpression(pattern: "\\b\(NSRegularExpression.escapedPattern(for: word))\\b") {
+                let nsString = codeStr as NSString
+                let matches = regex.matches(in: codeStr, range: NSRange(location: 0, length: nsString.length))
+                for match in matches {
+                    if let range = Range(match.range, in: codeStr),
+                       let attrRange = Range(range, in: attr) {
+                        attr[attrRange].foregroundColor = Color.purple
+                        attr[attrRange].inlinePresentationIntent = .stronglyEmphasized
+                    }
+                }
+            }
+        }
+        
+        if let regex = try? NSRegularExpression(pattern: "\"([^\"]*)\"|'([^']*)'") {
+            let nsString = codeStr as NSString
+            let matches = regex.matches(in: codeStr, range: NSRange(location: 0, length: nsString.length))
+            for match in matches {
+                if let range = Range(match.range, in: codeStr),
+                   let attrRange = Range(range, in: attr) {
+                    attr[attrRange].foregroundColor = Color.green
+                }
+            }
+        }
+        
+        if let regex = try? NSRegularExpression(pattern: "(//.*$|#.*$)", options: .anchorsMatchLines) {
+            let nsString = codeStr as NSString
+            let matches = regex.matches(in: codeStr, range: NSRange(location: 0, length: nsString.length))
+            for match in matches {
+                if let range = Range(match.range, in: codeStr),
+                   let attrRange = Range(range, in: attr) {
+                    attr[attrRange].foregroundColor = Color.secondary
+                }
+            }
+        }
+        
+        if let regex = try? NSRegularExpression(pattern: "\\b[0-9]+\\b") {
+            let nsString = codeStr as NSString
+            let matches = regex.matches(in: codeStr, range: NSRange(location: 0, length: nsString.length))
+            for match in matches {
+                if let range = Range(match.range, in: codeStr),
+                   let attrRange = Range(range, in: attr) {
+                    attr[attrRange].foregroundColor = Color.orange
+                }
+            }
+        }
+        
+        return attr
+    }
+}
+
 struct MarkdownPreview: View {
     let content: String
     @ObservedObject var store: NoteStore
@@ -688,9 +839,39 @@ struct MarkdownPreview: View {
         let rawLines = cleanContent.components(separatedBy: .newlines)
         var result: [MarkdownBlock] = []
         var currentTableLines: [String] = []
+        var currentCodeLines: [String] = []
+        var inCodeBlock = false
+        var codeLang = ""
         
         for line in rawLines {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
+            
+            if trimmed.hasPrefix("```") {
+                if inCodeBlock {
+                    result.append(.codeBlock(language: codeLang, code: currentCodeLines.joined(separator: "\n")))
+                    currentCodeLines.removeAll()
+                    inCodeBlock = false
+                    codeLang = ""
+                } else {
+                    if !currentTableLines.isEmpty {
+                        if let tableBlock = parseTableBlock(currentTableLines) {
+                            result.append(tableBlock)
+                        } else {
+                            for tLine in currentTableLines { result.append(.line(tLine)) }
+                        }
+                        currentTableLines.removeAll()
+                    }
+                    inCodeBlock = true
+                    codeLang = String(trimmed.dropFirst(3)).trimmingCharacters(in: .whitespaces)
+                }
+                continue
+            }
+            
+            if inCodeBlock {
+                currentCodeLines.append(line)
+                continue
+            }
+            
             if trimmed.hasPrefix("|") && trimmed.hasSuffix("|") && trimmed.count > 1 {
                 currentTableLines.append(trimmed)
             } else {
@@ -698,9 +879,7 @@ struct MarkdownPreview: View {
                     if let tableBlock = parseTableBlock(currentTableLines) {
                         result.append(tableBlock)
                     } else {
-                        for tLine in currentTableLines {
-                            result.append(.line(tLine))
-                        }
+                        for tLine in currentTableLines { result.append(.line(tLine)) }
                     }
                     currentTableLines.removeAll()
                 }
@@ -708,13 +887,15 @@ struct MarkdownPreview: View {
             }
         }
         
+        if inCodeBlock && !currentCodeLines.isEmpty {
+            result.append(.codeBlock(language: codeLang, code: currentCodeLines.joined(separator: "\n")))
+        }
+        
         if !currentTableLines.isEmpty {
             if let tableBlock = parseTableBlock(currentTableLines) {
                 result.append(tableBlock)
             } else {
-                for tLine in currentTableLines {
-                    result.append(.line(tLine))
-                }
+                for tLine in currentTableLines { result.append(.line(tLine)) }
             }
         }
         
@@ -750,6 +931,8 @@ struct MarkdownPreview: View {
                     parseLine(line)
                 case .table(let headers, let rows):
                     MarkdownTableView(headers: headers, rows: rows, fontFamily: fontFamily)
+                case .codeBlock(let language, let code):
+                    MarkdownCodeBlockView(language: language, code: code)
                 }
             }
         }
@@ -855,7 +1038,7 @@ struct MarkdownPreview: View {
     }
 }
 
-// MARK: - Native AppKit NSTextView Wrapper with Typography Options
+// MARK: - Native AppKit NSTextView Wrapper with Right-Click Context Menu & Callbacks
 
 struct MacEditorView: NSViewRepresentable {
     @Binding var text: String
@@ -863,6 +1046,18 @@ struct MacEditorView: NSViewRepresentable {
     var fontFamily: EditorFontFamily = .mono
     var onPasteImage: ((Data, String) -> Void)?
     var onDropImageFile: ((URL) -> Void)?
+    var onInsertTable: (() -> Void)?
+    var onInsertImage: (() -> Void)?
+    var onInsertCodeBlock: (() -> Void)?
+    var onInsertBold: (() -> Void)?
+    var onInsertItalic: (() -> Void)?
+    var onInsertH1: (() -> Void)?
+    var onInsertH2: (() -> Void)?
+    var onInsertWikiLink: (() -> Void)?
+    var onExportPDF: (() -> Void)?
+    var onExportHTML: (() -> Void)?
+    var onExportMD: (() -> Void)?
+    var onExportTXT: (() -> Void)?
     
     class Coordinator: NSObject, NSTextViewDelegate {
         var parent: MacEditorView
@@ -913,8 +1108,7 @@ struct MacEditorView: NSViewRepresentable {
         textView.textColor = NSColor.textColor
         textView.drawsBackground = false
         
-        textView.onPasteImage = onPasteImage
-        textView.onDropImage = onDropImageFile
+        configureTextViewCallbacks(textView)
         textView.registerForDraggedTypes([.fileURL, .png, .tiff])
         
         scrollView.documentView = textView
@@ -936,8 +1130,7 @@ struct MacEditorView: NSViewRepresentable {
             textView.string = text
         }
         textView.font = fontFamily.nsFont
-        textView.onPasteImage = onPasteImage
-        textView.onDropImage = onDropImageFile
+        configureTextViewCallbacks(textView)
         if textView.isAutomaticSpellingCorrectionEnabled != isAutoCorrectEnabled {
             textView.isContinuousSpellCheckingEnabled = isAutoCorrectEnabled
             textView.isGrammarCheckingEnabled = isAutoCorrectEnabled
@@ -945,11 +1138,99 @@ struct MacEditorView: NSViewRepresentable {
             textView.isAutomaticTextReplacementEnabled = isAutoCorrectEnabled
         }
     }
+    
+    private func configureTextViewCallbacks(_ textView: ImageNSTextView) {
+        textView.onPasteImage = onPasteImage
+        textView.onDropImage = onDropImageFile
+        textView.onInsertTable = onInsertTable
+        textView.onInsertImage = onInsertImage
+        textView.onInsertCodeBlock = onInsertCodeBlock
+        textView.onInsertBold = onInsertBold
+        textView.onInsertItalic = onInsertItalic
+        textView.onInsertH1 = onInsertH1
+        textView.onInsertH2 = onInsertH2
+        textView.onInsertWikiLink = onInsertWikiLink
+        textView.onExportPDF = onExportPDF
+        textView.onExportHTML = onExportHTML
+        textView.onExportMD = onExportMD
+        textView.onExportTXT = onExportTXT
+    }
 }
 
 class ImageNSTextView: NSTextView {
     var onPasteImage: ((Data, String) -> Void)?
     var onDropImage: ((URL) -> Void)?
+    var onInsertTable: (() -> Void)?
+    var onInsertImage: (() -> Void)?
+    var onInsertCodeBlock: (() -> Void)?
+    var onInsertBold: (() -> Void)?
+    var onInsertItalic: (() -> Void)?
+    var onInsertH1: (() -> Void)?
+    var onInsertH2: (() -> Void)?
+    var onInsertWikiLink: (() -> Void)?
+    var onExportPDF: (() -> Void)?
+    var onExportHTML: (() -> Void)?
+    var onExportMD: (() -> Void)?
+    var onExportTXT: (() -> Void)?
+    
+    override func menu(for event: NSEvent) -> NSMenu? {
+        let menu = NSMenu()
+        
+        // Formatting Section
+        let formatItem = NSMenuItem(title: "Format Text", action: nil, keyEquivalent: "")
+        let formatSub = NSMenu()
+        formatSub.addItem(NSMenuItem(title: "Heading H1 (#)", action: #selector(ctxH1), keyEquivalent: ""))
+        formatSub.addItem(NSMenuItem(title: "Heading H2 (##)", action: #selector(ctxH2), keyEquivalent: ""))
+        formatSub.addItem(NSMenuItem(title: "Bold (**text**)", action: #selector(ctxBold), keyEquivalent: ""))
+        formatSub.addItem(NSMenuItem(title: "Italic (*text*)", action: #selector(ctxItalic), keyEquivalent: ""))
+        formatItem.submenu = formatSub
+        menu.addItem(formatItem)
+        
+        // Insert Section
+        let insertItem = NSMenuItem(title: "Insert Element", action: nil, keyEquivalent: "")
+        let insertSub = NSMenu()
+        insertSub.addItem(NSMenuItem(title: "Markdown Table", action: #selector(ctxTable), keyEquivalent: ""))
+        insertSub.addItem(NSMenuItem(title: "Code Block (```)", action: #selector(ctxCodeBlock), keyEquivalent: ""))
+        insertSub.addItem(NSMenuItem(title: "Image File...", action: #selector(ctxImage), keyEquivalent: ""))
+        insertSub.addItem(NSMenuItem(title: "WikiLink [[Note]]", action: #selector(ctxWikiLink), keyEquivalent: ""))
+        insertItem.submenu = insertSub
+        menu.addItem(insertItem)
+        
+        menu.addItem(NSMenuItem.separator())
+        
+        // Standard Text Commands
+        menu.addItem(NSMenuItem(title: "Cut", action: #selector(cut(_:)), keyEquivalent: "x"))
+        menu.addItem(NSMenuItem(title: "Copy", action: #selector(copy(_:)), keyEquivalent: "c"))
+        menu.addItem(NSMenuItem(title: "Paste", action: #selector(paste(_:)), keyEquivalent: "v"))
+        menu.addItem(NSMenuItem(title: "Select All", action: #selector(selectAll(_:)), keyEquivalent: "a"))
+        
+        menu.addItem(NSMenuItem.separator())
+        
+        // Export Section
+        let exportItem = NSMenuItem(title: "Export Note", action: nil, keyEquivalent: "")
+        let exportSub = NSMenu()
+        exportSub.addItem(NSMenuItem(title: "Export as PDF (.pdf)", action: #selector(ctxExportPDF), keyEquivalent: ""))
+        exportSub.addItem(NSMenuItem(title: "Export as HTML (.html)", action: #selector(ctxExportHTML), keyEquivalent: ""))
+        exportSub.addItem(NSMenuItem(title: "Export as Markdown (.md)", action: #selector(ctxExportMD), keyEquivalent: ""))
+        exportSub.addItem(NSMenuItem(title: "Export as Plain Text (.txt)", action: #selector(ctxExportTXT), keyEquivalent: ""))
+        exportItem.submenu = exportSub
+        menu.addItem(exportItem)
+        
+        return menu
+    }
+    
+    @objc private func ctxH1() { onInsertH1?() }
+    @objc private func ctxH2() { onInsertH2?() }
+    @objc private func ctxBold() { onInsertBold?() }
+    @objc private func ctxItalic() { onInsertItalic?() }
+    @objc private func ctxTable() { onInsertTable?() }
+    @objc private func ctxCodeBlock() { onInsertCodeBlock?() }
+    @objc private func ctxImage() { onInsertImage?() }
+    @objc private func ctxWikiLink() { onInsertWikiLink?() }
+    @objc private func ctxExportPDF() { onExportPDF?() }
+    @objc private func ctxExportHTML() { onExportHTML?() }
+    @objc private func ctxExportMD() { onExportMD?() }
+    @objc private func ctxExportTXT() { onExportTXT?() }
     
     override func paste(_ sender: Any?) {
         let pb = NSPasteboard.general
