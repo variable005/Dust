@@ -1010,8 +1010,6 @@ struct MarkdownPreview: View {
                 Text(trimmed.dropFirst(2))
                     .font(.system(size: 14, design: fontFamily.swiftUIFontDesign))
             }
-        } else if trimmed.hasPrefix("```") {
-            Divider()
         } else if trimmed.isEmpty {
             Spacer().frame(height: 4)
         } else {
@@ -1219,18 +1217,55 @@ class ImageNSTextView: NSTextView {
         return menu
     }
     
-    @objc private func ctxH1() { onInsertH1?() }
-    @objc private func ctxH2() { onInsertH2?() }
-    @objc private func ctxBold() { onInsertBold?() }
-    @objc private func ctxItalic() { onInsertItalic?() }
-    @objc private func ctxTable() { onInsertTable?() }
-    @objc private func ctxCodeBlock() { onInsertCodeBlock?() }
+    @objc private func ctxH1() { insertSnippetAtCursor("# ") }
+    @objc private func ctxH2() { insertSnippetAtCursor("## ") }
+    @objc private func ctxBold() { insertSnippetAtCursor("**", suffix: "**") }
+    @objc private func ctxItalic() { insertSnippetAtCursor("*", suffix: "*") }
+    @objc private func ctxTable() {
+        let snippet = "\n| Header 1 | Header 2 | Header 3 |\n| --- | --- | --- |\n| Item A | Details B | Status C |\n| Item D | Details E | Status F |\n"
+        insertSnippetAtCursor(snippet)
+    }
+    @objc private func ctxCodeBlock() { insertCodeBlockAtCursor() }
     @objc private func ctxImage() { onInsertImage?() }
-    @objc private func ctxWikiLink() { onInsertWikiLink?() }
+    @objc private func ctxWikiLink() { insertSnippetAtCursor("[[", suffix: "]]") }
     @objc private func ctxExportPDF() { onExportPDF?() }
     @objc private func ctxExportHTML() { onExportHTML?() }
     @objc private func ctxExportMD() { onExportMD?() }
     @objc private func ctxExportTXT() { onExportTXT?() }
+    
+    public func insertSnippetAtCursor(_ prefix: String, suffix: String = "") {
+        let range = selectedRange()
+        let nsString = string as NSString
+        
+        if range.location != NSNotFound && range.length > 0 {
+            let selectedText = nsString.substring(with: range)
+            let replacement = "\(prefix)\(selectedText)\(suffix)"
+            insertText(replacement, replacementRange: range)
+        } else if range.location != NSNotFound {
+            let replacement = "\(prefix)\(suffix)"
+            insertText(replacement, replacementRange: range)
+        } else {
+            let replacement = "\(prefix)\(suffix)"
+            insertText(replacement, replacementRange: NSRange(location: nsString.length, length: 0))
+        }
+    }
+    
+    public func insertCodeBlockAtCursor(language: String = "swift") {
+        let range = selectedRange()
+        let nsString = string as NSString
+        
+        if range.location != NSNotFound && range.length > 0 {
+            let selectedText = nsString.substring(with: range)
+            let replacement = "\n```\(language)\n\(selectedText)\n```\n"
+            insertText(replacement, replacementRange: range)
+        } else if range.location != NSNotFound {
+            let replacement = "\n```\(language)\n// Write your \(language) code here\n```\n"
+            insertText(replacement, replacementRange: range)
+        } else {
+            let replacement = "\n```\(language)\n// Write your \(language) code here\n```\n"
+            insertText(replacement, replacementRange: NSRange(location: nsString.length, length: 0))
+        }
+    }
     
     override func paste(_ sender: Any?) {
         let pb = NSPasteboard.general
