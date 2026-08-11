@@ -19,6 +19,18 @@ struct FullScreenFocusView: View {
         EditorFontFamily(rawValue: rawFontFamily) ?? .mono
     }
     
+    private func constructFullContent(body: String, banner: String?, icon: String?) -> String {
+        var frontLines: [String] = []
+        if let b = banner, !b.isEmpty { frontLines.append("banner: \"\(b)\"") }
+        if let i = icon, !i.isEmpty { frontLines.append("icon: \"\(i)\"") }
+        
+        if frontLines.isEmpty {
+            return body
+        } else {
+            return "---\n" + frontLines.joined(separator: "\n") + "\n---\n\n" + body
+        }
+    }
+    
     var wordCount: Int {
         let components = focusState.content.components(separatedBy: .whitespacesAndNewlines)
         return components.filter { !$0.isEmpty }.count
@@ -158,7 +170,10 @@ struct FullScreenFocusView: View {
                     }
                 }
                 .onChange(of: focusState.content) { oldValue, newValue in
-                    store.updateNoteContent(id: note.id, newContent: newValue)
+                    let fullContent = constructFullContent(body: newValue, banner: note.bannerStyle, icon: note.iconEmoji)
+                    if fullContent != note.content {
+                        store.updateNoteContent(id: note.id, newContent: fullContent)
+                    }
                 }
             }
             
@@ -202,14 +217,13 @@ struct FullScreenFocusView: View {
                 .background(.ultraThinMaterial, in: Capsule())
                 .overlay(
                     Capsule()
-                        .stroke(Color.cyan.opacity(0.3), lineWidth: 1)
+                        .stroke(Color.white.opacity(0.15), lineWidth: 1)
                 )
-                .shadow(color: .black.opacity(0.4), radius: 12, x: 0, y: 6)
                 .padding(.bottom, 24)
             }
         }
         .onAppear {
-            focusState.content = note.content
+            focusState.content = note.bodyText
         }
         // Capture Escape key to exit focus mode
         .background(

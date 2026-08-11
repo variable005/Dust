@@ -61,6 +61,16 @@ public struct Note: Identifiable, Hashable, Codable, Sendable {
         return parent == "." ? "" : parent
     }
     
+    /// Pure body content without YAML frontmatter header block
+    public var bodyText: String {
+        var cleanContent = content
+        if let regex = try? NSRegularExpression(pattern: "(?s)^---.*?---", options: []) {
+            let nsRange = NSRange(location: 0, length: (cleanContent as NSString).length)
+            cleanContent = regex.stringByReplacingMatches(in: cleanContent, options: [], range: nsRange, withTemplate: "")
+        }
+        return cleanContent.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+    
     /// Clean snippet preview without Frontmatter metadata or Markdown symbols
     public var snippet: String {
         var cleanContent = content

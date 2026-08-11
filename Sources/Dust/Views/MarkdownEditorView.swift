@@ -57,7 +57,7 @@ final class EditorViewModel: ObservableObject {
     func sync(with note: Note) {
         if currentNoteId != note.id {
             currentNoteId = note.id
-            content = note.content
+            content = note.bodyText
         }
     }
 }
@@ -186,9 +186,22 @@ struct MarkdownEditorView: View {
             isFocused = true
         }
         .onChange(of: viewModel.content) { _, newText in
-            if newText != note.content {
-                onContentChange(newText)
+            let fullContent = constructFullContent(body: newText, banner: note.bannerStyle, icon: note.iconEmoji)
+            if fullContent != note.content {
+                onContentChange(fullContent)
             }
+        }
+    }
+    
+    private func constructFullContent(body: String, banner: String?, icon: String?) -> String {
+        var frontLines: [String] = []
+        if let b = banner, !b.isEmpty { frontLines.append("banner: \"\(b)\"") }
+        if let i = icon, !i.isEmpty { frontLines.append("icon: \"\(i)\"") }
+        
+        if frontLines.isEmpty {
+            return body
+        } else {
+            return "---\n" + frontLines.joined(separator: "\n") + "\n---\n\n" + body
         }
     }
     
@@ -401,41 +414,14 @@ struct MarkdownEditorView: View {
     }
     
     private func updateFrontmatter(banner: String?, icon: String?) {
-        var lines = viewModel.content.components(separatedBy: .newlines)
-        var hasFrontmatter = false
-        var frontmatterEndIndex = -1
-        
-        if lines.first == "---" {
-            hasFrontmatter = true
-            for (idx, line) in lines.enumerated().dropFirst() {
-                if line == "---" {
-                    frontmatterEndIndex = idx
-                    break
-                }
-            }
-        }
-        
         var currentBanner = note.bannerStyle
         var currentIcon = note.iconEmoji
         
         if let b = banner { currentBanner = b.isEmpty ? nil : b }
         if let i = icon { currentIcon = i.isEmpty ? nil : i }
         
-        var newFrontLines: [String] = []
-        if let b = currentBanner { newFrontLines.append("banner: \"\(b)\"") }
-        if let i = currentIcon { newFrontLines.append("icon: \"\(i)\"") }
-        
-        if hasFrontmatter && frontmatterEndIndex != -1 {
-            lines.removeSubrange(0...frontmatterEndIndex)
-        }
-        
-        var newContent = lines.joined(separator: "\n")
-        if !newFrontLines.isEmpty {
-            let front = "---\n" + newFrontLines.joined(separator: "\n") + "\n---\n\n"
-            newContent = front + newContent
-        }
-        
-        viewModel.content = newContent
+        let fullContent = constructFullContent(body: viewModel.content, banner: currentBanner, icon: currentIcon)
+        onContentChange(fullContent)
     }
 
     private func isCustomImageBanner(_ style: String) -> Bool {
